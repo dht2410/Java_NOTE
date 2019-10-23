@@ -1,0 +1,33 @@
+归并排序
+递归地，将数组分成两半分别排序，然后将结果归并起来。
+分治思想，将大问题分解成小问题
+缺点：需要额外一个和数组a一样大小的数组
+
+自顶向下的归并递归
+public static void sort(Comparable[] a, int lo, int hi){
+        if (lo>=hi) return;
+        int mid = (lo+hi)/2;
+        sort(a,lo,mid);
+        sort(a,mid+1,hi);
+        merge(a,lo,mid,hi);
+    }
+比较次数为NlgN:
+	N个元素，因此会有lgN递归层，每层最多比较N次
+	比较操作都在merge方法中
+提高效率方法：
+	1.对小规模子数组采用插入排序
+	2.检查是否有序，如果a[mid]<a[mid=1]，则跳过merge阶段
+	3.不将元素复制到辅助数组，每层sort交换辅助数组与主数组
+	
+自底向上的归并
+public static void sort(Comparable[] a) {
+        int N = a.length;
+        aux = new Comparable[N];
+        for (int sz=1; sz<N;sz+=sz){
+            for (int lo=0;lo<N-sz;lo+=sz+sz){
+                merge(a,lo,lo+sz-1,Math.min(lo+sz*2-1,N-1));
+            }
+        }
+    }
+自底向上的归并适用于链表组织的数据结构，这是对链表排序的最佳方式
+比较次数为NlgN

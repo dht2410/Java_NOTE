@@ -1,0 +1,112 @@
+优先队列PriorityQueue源码
+
+扩展AbstractQueue抽象类，实现Queue接口
+利用可变数组实现，默认容量为11，数据结构为堆，元素不能是null
+
+实例域：
+private static final int DEFAULT_INITIAL_CAPACITY = 11;
+transient Object[] queue;  // non-private to simplify nested class（内部类） access
+private int size = 0;  //队列中元素个数
+private final Comparator<? super E> comparator;  //The comparator, or null if priority queue uses elements' natural ordering.
+transient int modCount = 0; // non-private to simplify nested class access
+
+构造器：
+public PriorityQueue(int initialCapacity,
+					 Comparator<? super E> comparator) {
+	// Note: This restriction of at least one is not actually needed,
+	// but continues for 1.5 compatibility
+	if (initialCapacity < 1)
+		throw new IllegalArgumentException();
+	this.queue = new Object[initialCapacity];
+	this.comparator = comparator;
+}
+
+其他构造器均依赖于上述构造器如：
+public PriorityQueue()
+public PriorityQueue(int initialCapacity)
+public PriorityQueue(Comparator<? super E> comparator)
+其他构造器：
+public PriorityQueue(Collection<? extends E> c)  //把集合中元素逐个放入queue中，并使其堆有序
+public PriorityQueue(PriorityQueue<? extends E> c)  //把集合中的元素逐个放入queue中
+public PriorityQueue(SortedSet<? extends E> c)  //把集合中的元素逐个放入queue中
+
+方法：
+public boolean add(E e)
+public boolean offer(E e)
+将元素e插入到正确位置，调用了私有函数grow(int minCapcity)实现了可变增长，
+调用私有函数siftUp(int k, E x)实现了元素上浮
+
+public boolean remove(Object o)
+首先调用int index(Object o)函数得到o所在的位置，然后调用私有函数removeAt(int i)，
+该函数首先把第i个元素替换为最后一个元素，最后一个元素置为null，调用siftDown函数，
+如果没下沉，则调用siftUp函数
+
+关于迭代器
+优先级队列的迭代器并不保证遍历按照指定的顺序获取节点元素。
+这是因为当在迭代器中执行remove操作时，可能会涉及到一个未访问的元素被移动到了一个已经访问过的
+节点位置（因为删除cursor前一个元素意味着，最后面的元素会补充到这里，如果它执行了一个下沉操作，
+那么cursor--继续遍历就可以；但如果它执行了上浮操作，那么就需要比较复杂的遍历：先把它放到一个双端队列里，
+当所有的元素遍历完后，对双端队列里的元素进行遍历）
+为此定义了三个变量
+private ArrayDeque<E> forgetMeNot = null;  //双端队列，初始值为null
+private int lastRet = -1;  //上一个访问的元素的index，若不是访问的双端队列里的元素，那么值就比cursor小1，
+							如果是双端队列里的元素，则作为标志，此值为-1
+private E lastRetElt = null;  //双端队列里访问的上一个元素
+
+public boolean hasNext() {
+	return cursor < size ||
+		(forgetMeNot != null && !forgetMeNot.isEmpty());
+}
+//不止要判断cursor < size，还要判断双端队列是否为空
+
+public E next() {
+	if (expectedModCount != modCount)
+		throw new ConcurrentModificationException();
+	if (cursor < size)
+		return (E) queue[lastRet = cursor++];
+	if (forgetMeNot != null) {
+		lastRet = -1;
+		lastRetElt = forgetMeNot.poll();
+		if (lastRetElt != null)
+			return lastRetElt;
+	}
+	throw new NoSuchElementException();
+}
+//先看原数组，同一般迭代器，再看forgetMeNot里的，next()取出的就是目前forgetMeNot里最先进的那个元素
+
+public void remove() {
+	if (expectedModCount != modCount)
+		throw new ConcurrentModificationException();
+	// 先看原数组的，lastRet != -1说明还没访问到双端队列，分换过来的元素是上浮（moved == null）还是下沉两种情况
+	if (lastRet != -1) {
+		E moved = PriorityQueue.this.removeAt(lastRet);
+		lastRet = -1;
+		if (moved == null)
+			cursor--;
+		else {
+			if (forgetMeNot == null)
+				forgetMeNot = new ArrayDeque<>();
+			forgetMeNot.add(moved);
+		}
+	}
+	//当访问到双端队列，删除原本在数组里的这个值，将lastRetElt置为null，方便next()方法的进行
+	else if (lastRetElt != null) {
+		PriorityQueue.this.removeEq(lastRetElt);
+		lastRetElt = null;
+	} else {
+		throw new IllegalStateException();
+	}
+	expectedModCount = modCount;
+}
+
+public E poll()
+//删除最小元素
+
+private void heapify() {
+	for (int i = (size >>> 1) - 1; i >= 0; i--)
+		siftDown(i, (E) queue[i]);
+}
+//将数组堆有序化，用从一半开始下沉的方式
+
+public final Spliterator<E> spliterator()
+//since JDK1.8，还需再看

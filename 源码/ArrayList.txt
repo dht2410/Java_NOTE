@@ -1,0 +1,49 @@
+ArrayList源码笔记
+
+利用可变数组实现
+
+实现RandomAccess接口，有此接口，尽量用for(int i = 0; i < size; i++) 即for循环来遍历，而不是用Iterator
+迭代器来进行迭代。在对List特别是Huge size的List的遍历算法中，要尽量来判断是属于
+RandomAccess(如：ArrayList)还是SequenceAccess(如：LinkedList)
+
+内部实例域
+	private static final int DEFAULT_CAPACITY = 10;//默认容量
+	private static final Object[] EMPTY_ELEMENTDATA = {};
+	private static final Object[] DEFAULTCAPACITY_EMPTY_ELEMENTDATA = {};
+	transient Object[] elementData; // non-private to simplify nested class access
+	private int size;
+
+三种构造方法
+	public ArrayList(int initialCapacity) //判断initialCapacity是否为0
+	public ArrayList() //构造初始数组容量为10
+	public ArrayList(Collection<? extends E> c) //把c中元素放进去
+
+public void trimToSize()方法：
+	if (size < elementData.length) 把数组长度缩短为元素个数大小
+
+public void ensureCapacity(int minCapacity)方法：
+	如果不是默认数组，变成minCapacity容量；
+	如果已经是默认数组，且minCapacity<DEFAULT_CAPACITY，变成DEFAULT_CAPACITY容量；
+	如果已经是默认数组，且minCapacity>DEFAULT_CAPACITY，变成minCapacity容量
+
+public int indexOf(Object o)方法：
+	Object o 所在索引；
+	o可以为null；
+
+modCount++出现在结构发生变化（增减）的方法，如：
+	public boolean add(E e)
+	public void add(int index, E element)
+	public E remove(int index)
+	public void clear()
+	protected void removeRange(int fromIndex, int toIndex)
+	public boolean retainAll(Collection<?> c)//modCount增加减少的元素个数
+
+add和remove方法调用System.arraycopy静态方法，进行数组的整体前移或后移
+
+public boolean remove(Object o)调用内部私有方法fastRemove，
+和remove区别为fastRemove无返回值
+
+实现了ListIterator<E>和Iterator<E>接口
+
+
+

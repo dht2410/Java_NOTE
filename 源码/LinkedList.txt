@@ -1,0 +1,60 @@
+LinkedList源码笔记
+实现的接口有list<E>,Deque<E>
+
+实例域：
+transient int size = 0;
+transient Node<E> first;
+transient Node<E> last;   //transient关键字为不能序列化
+
+Node<E>定义为：
+private static class Node<E> {
+        E item;
+        Node<E> next;
+        Node<E> prev;
+
+        Node(Node<E> prev, E element, Node<E> next) {
+            this.item = element;
+            this.next = next;
+            this.prev = prev;
+        }
+    }
+	//static类只能用于嵌套类，和外部类相同，只是为了方便打包
+	//构造器为了便于从中间插入元素
+
+构造器：
+public LinkedList(Collection<? extends E> c) {
+        this();
+        addAll(c);
+    }
+	//this()构造一个空列表
+	//addAll调用addAll(Collection<? extends E> c)方法，addAll(Collection<? extends E> c)方法
+	//再调用addAll(int index, Collection<? extends E> c),表示从索引index处插入c
+
+int modCount字段定义在AbstractList中，表示list被修改的次数，用于快速失败
+在实现迭代器接口的内部类中定义 int expectedModCount字段, 每次操作前检查expectedModCount==modCount
+在迭代器中有增减操作时，令expectedModCount++
+
+列表迭代器listIterator<E>接口，扩展于Iterator<E>接口，内部类
+private class ListItr implements ListIterator<E> {
+        private Node<E> lastReturned;
+        private Node<E> next;
+        private int nextIndex;
+        private int expectedModCount = modCount;
+
+        ListItr(int index) {
+            // assert isPositionIndex(index);
+            next = (index == size) ? null : node(index);
+            nextIndex = index;
+        }
+
+逆向迭代器DescendingIterator，实现Iterator<E>接口，在内部实例化一个ListItr对象，调用其方法
+
+clone()方法：浅拷贝，对象引用拷贝，the elements themselves are not cloned.
+
+clear()方法：把元素和指针全部设为空
+
+toArray()方法：返回一个数组对象Object[]
+
+CSDN源码分析博客https://blog.csdn.net/m0_37884977/article/details/80467658
+
+

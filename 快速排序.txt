@@ -1,0 +1,108 @@
+快速排序
+采用分治的思想，最左边元素记为a[lo]，分别从数组左右开始向中间扫描，左边i碰到的比a[lo]大的和
+右边j碰到的比a[lo]小的交换位置，直到左边的index大于等于右边，或者左右两边index过界，然后交换
+a[lo]和a[j]，这样a[lo]左边都比自己小，右边都比自己大。左右两边重复以上动作。
+
+处理前要先将数组打乱，偏爱随机性
+
+Java中Arrays.sort()用的就是快速排序
+
+快速切分代码：//while循环内部是重点
+private static int partition(Comparable[] a, int lo, int hi){
+	Comparable v = a[lo];
+	int i = lo, j=hi+1;
+	while(true){
+		while(less(a[++i],v)){
+			if(i==hi)
+				break;
+		}
+		while(less(v,a[--j])){
+			if(j==lo)
+				break;
+		}
+		if(i>=j) break;
+		exch(a,i,j);
+	}
+	exch(a,lo,j);
+	return j;
+}
+排序代码：
+private static void sort(Comparable[] a, int lo,int hi){
+	if(lo>=hi) return;
+	int middle;
+	middle = partition(a,lo,hi);
+	sort(a,lo,middle-1);
+	sort(a,middle+1,hi);
+}
+//与归并排序不同的是，快速排序先切割再排序，归并排序是先排序再合并
+//归并排序需要一个额外的数组，快速排序不需要
+
+算法改进：
+1.在小数组中利用插入排序，sort方法判断句改为
+	if (lo+M>=hi){Insertion.sort(a,lo,hi);return;}//M在5~15中为最佳
+2.三取样切分
+3.三向切分（对于大量重复元素排序比普通快速排序快得多）
+	取三个指针维护，初始lt=lo,i=lo+1,gt=hi
+	lt指向第一个等于a[lo]的元素，i指向最后一个等于a[lo]的后一个元素，不确定大小
+	gt指向最前一个大于a[lo]的元素的前一个元素，不确定大小
+	如果a[i]<a[lo]，则交换a[i]和a[lt]，i++，lt++
+	如果a[i]>a[lo]，则交换a[i]和a[gt]，gt--
+	如果a[i]=a[lo]，则i++
+	最后，迭代[lo,lt-1]和[gt+1,hi]区间的元素
+	
+	代码：
+	private static void sort(Comparable[] a, int lo,int hi){
+        if(lo>=hi) return;
+        int lt=lo, i=lo+1, gt=hi;
+        Comparable v =a[lt];
+        while(i<=gt){
+            int cmp = a[i].compareTo(v);
+            if (cmp<0) exch(a,i++,lt++);
+            else if (cmp>0) exch(a,i,gt--);
+            else i++;
+        }
+        sort(a,lo,lt-1);
+        sort(a,gt+1,hi);
+    }
+	
+2.3.20 快速排序的非递归算法（利用栈）：
+将每一次划分开后的左右两个子数组的最前和最后的index压栈，弹栈两个作为lo和hi，重复压栈过程
+需要额外一个栈
+private static void sort(Comparable[] a, int lo,int hi){
+	if(lo>=hi) return;
+	int top=0;
+	int[] stack = new int[a.length];
+	int middle;
+	middle = partition(a,lo,hi);
+	if (middle>lo+1){
+		stack[top++]=lo;
+		stack[top++]=middle-1;
+	}
+	if(middle<hi-1){
+		stack[top++]=middle+1;
+		stack[top++]=hi;
+	}
+	while(top>0){
+		int high = stack[--top];
+		int least = stack[--top];
+		middle = partition(a,least,high);
+		if(middle>least+1){
+			stack[top++]=least;
+			stack[top++]=middle+1;
+		}
+		if(middle<high-1){
+			stack[top++]=middle+1;
+			stack[top++]=high;
+		}
+	}
+}
+
+2.3.22 快速三向切分
+除了记录数组的最前和最后索引的lo和hi,以及记录左右扫描位置的索引i和j
+加入索引p和q，用于代表左边与a[lo]相等的元素子数组中最右边那个位置，
+和代表右边与a[lo]相等的元素子数组中最左边那个位置
+算法过程只在快速排序的基础上增加一步：a[i]和a[j]交换后，判断a[i]和a[j]与a[lo]是否相等
+若a[i]==a[lo]，将其与a[++p]交换位置
+若a[j]==a[lo]，将其与a[--q]交换位置
+跳出循环后，i指向大于a[lo]数组的第一个，j指向小于a[lo]数组的最后一个
+最后将两边等于a[lo]数组交换到中间，此时j指向左边即将迭代数组最后一个，i指向右边迭代子数组的第一个

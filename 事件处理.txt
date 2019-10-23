@@ -1,0 +1,14 @@
+事件对象派生于EventObject类，如ActionEvent和Windowevent
+
+1.监听器对象是一个实现了特定监听器接口的类的实例
+	ActionListener listener = ...;
+2.事件源是一个能够注册监听器对象并发送事件对象的对象
+	JButton button = new JButton("ok");  //button就是事件源
+	button.addActionListener(listener);
+3.当事件发生时，事件源将事件对象传递给所有注册的监听器对象
+	listener对象的actionPerformed方法接收一个ActionEvent对象
+4.监听器对象listener利用接收到的ActionEvent对象对事件做出响应
+	actionPerformed方法执行
+	
+事件监听器对象通常需要用Actionperformed方法执行一些对其他对象有影响的操作，因此可以
+策略性地将该类放在需要修改的那个状态类中

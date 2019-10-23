@@ -1,0 +1,30 @@
+1.  一个集合类Stack<items>实现了Iterable<items>接口，此接口也是泛型的
+
+2.	该接口定义了方法
+	public interface Iterable<items>
+	{
+		Iterator<items> iterator();
+	}
+	返回一个实现该迭代器的对象
+	
+3.  迭代器接口定义为
+	public interface Iterator<items>
+	{
+		boolean hasNext();
+		items next();
+		void remove();
+	}
+	
+4.  Stack类内部实现采用嵌套类
+    public class Stack<items> implements Iterable<items>
+	{
+		Iterator<items> iterator()
+		{
+			return new insideIterator();
+		}
+		
+		private class insideIterator implements Iterator<items>
+		{
+			//实现hasNext(),next(),remove()这三个方法
+		}
+	}
