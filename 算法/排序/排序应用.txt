@@ -1,0 +1,36 @@
+Kendall tau距离
+两个数组a[]和b[]的逆序对数
+如：a = { 0, 3, 1, 6, 2, 5, 4 }
+	b = { 1, 0, 3, 6, 4, 2, 5 }
+则逆序对有{ 0，1 }，{ 3，1 }，{ 2，4 }，{ 5，4 }，故两者的Kendall距离为4
+
+想法：
+	ainv[a[i]]=i;  ainv表示按a的次序重排的数组，即0<3<1<6<2<5<4，故ainv的第3位是1
+	bnew[i]=ainv[b[i]];  
+	意思是以a[]为新顺序，基底，看b在a[]的排序中各个元素的位置，比如b[0]为1，1在a[]中排第2位，那么bnew就是2
+	其实就是ainv[b[i]]和ainv[a[i]]的对应关系，b[i]的值是n，n在a中排多少呢，显然a[i]==n的那个i，就是n在a中的次序
+	ainv干的就是把n映射成i
+	最后
+	用插入排序重排bnew，交换的次数就是距离
+
+
+Java中两种比较
+1.Comparable接口
+	public class Item implements Comparable<Item>{
+		...
+		public int compareTo(Item that){}
+	}
+	
+	public class rongqi<Item extends Comparable<Item>>{
+		...
+		某Item.compareTo(另一个Item)
+	} 
+2.Comparator接口
+	定义一个类
+	public class myCamp implements Comparator<Item>{
+		...
+		public int compare(Item o1, Item o2){}
+	}
+	某方法需要传比较器进去
+	myCamp c = new myCamp();  //先实例化一个Comparator
+	Arrays.sort(a,c);   //a是一个Item[]数组

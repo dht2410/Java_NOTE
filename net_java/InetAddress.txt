@@ -1,0 +1,14 @@
+InetAddress类
+InetAddress add = InetAddress.getByName("www.baidu.com");
+方法：
+add.getHostName()   //返回字符串"www.baidu.com"
+add.getHostAddress()   //返回字符串IP地址
+add.getAddress()   //返回IP地址的字节数组
+其他测试该地址的方法
+
+public boolean isReachable(int timeout) throws IOException
+继承Object类的equals和hashcode方法，只要两个该对象的IP地址相同，那么equals方法返回true，
+hashcode()的值相同
+
+NetworkInterface类
+表示一个本地IP地址

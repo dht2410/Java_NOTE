@@ -1,0 +1,45 @@
+输出流
+public abstract class OutputStream
+方法：
+public abstract void write(int b) throws IOException  //只放0-255
+public void write(byte[] data) throws IOException
+public void write(byte[] data, int offset, int length) throws IOException
+public void flush() throws IOException  //强制缓存发送数据
+public void close()
+
+关闭流放在finally块中，为了避免出现NullPointerException，关流前检查变量是否为空
+
+输入流
+public abstract class InputStream
+方法：
+public abstract int read() throws IOException
+public int read(byte[] input) throws IOException  //读入缓冲区的总字节数，如果已满，则返回-1
+public int read(byte[] input, int offset, int length) throws IOException
+public long skip(long n) throws IOException
+public void close() throws IOException
+
+read方法会阻塞，所以应该把其放在单独的线程中
+
+过滤器流
+DataOutputStream dout = new DataOutputStream(
+						new BufferdOutputStream(
+						new FileOutputStream("data.txt")));
+无论如何，都只能使用链的最后一个过滤器
+
+缓冲流
+BufferedOutputStream先将数据写在缓冲区中，直到缓冲区满或刷新缓冲区。网络中一次传多个字节比一次传一个字节要来得快
+BufferedInputStream类先将数据存在缓冲区，当调用read方法时，先从缓冲区读
+构造函数：
+public BufferdOutputStream(OutputStream out)
+public BufferdOutputStream(OutputStream out, int bufferSize)
+
+PrintStream
+System.out就是一个PrintStream输出流
+PrintStream不提供异常通知，并且在不同系统上的输出可能不同，因此不建议网络中使用
+
+书写器Writer和阅读器Reader，分别与OutputStream和InputStream对应
+OutputStreamWriter
+public OutputStreamWriter(OutputStream out, String encoding) throws UnsupportedEncodingException//可指代编码方式
+
+InputStreamReader
+public InputStreamReader(InputStream in, String encoding) throws UnsupportedEncodingException

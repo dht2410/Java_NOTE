@@ -5,7 +5,7 @@ a[lo]和a[j]，这样a[lo]左边都比自己小，右边都比自己大。左右
 
 处理前要先将数组打乱，偏爱随机性
 
-Java中Arrays.sort()用的就是快速排序
+Java中Arrays.sort()对基本数据类型用的就是快速排序，对对象用的是归并排序（稳定性考虑）
 
 快速切分代码：//while循环内部是重点
 private static int partition(Comparable[] a, int lo, int hi){
