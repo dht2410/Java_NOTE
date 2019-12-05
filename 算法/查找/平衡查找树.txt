@@ -1,0 +1,90 @@
+针对二叉查找树最坏情况下的不平衡问题
+
+2-3查找树
+树中有两种结点，2-结点和普通二叉查找树结点相同，3-结点含有两个键三个链接，链接分别指向比小的小，介于中间和比大的大
+特点：所有空链接到根结点的距离是相同的
+
+插入时如果结束于2-结点，则直接变成3-结点；
+如果结束于3-结点，则先变成4结点，之后将中间项上浮至父结点，下面两个变成2-结点，父节点如果是3-结点，则递归进行
+
+红黑二叉查找树
+是2-3树的实现形式，包括红链接和黑链接
+    private class Node{
+        Key key;           //键
+        Value val;         //值
+        Node left, right;  //左右子树
+        int N;             //这棵子树中的结点总数
+        boolean color;     //由其父节点指向它的链接的颜色
+        public Node(Key key, Value val, int N, boolean color){
+            this.key = key;
+            this.val = val;
+            this.N = N;
+            this.color = color;
+        }
+    }
+在插入新键时可以采用旋转操作保证2-3树和红黑树之间的一一对应关系，旋转可以保证树的有序性和完美平衡性
+另外两个重要性质：
+1.不存在两条连续的红链接
+2.不存在红色的右链接
+
+1.向单个2-结点插入新键
+	如果新键比老键小，直接增加一个红色结点；如果新键比老键大，则新增的红色结点产生一条红色右链接
+	需旋转，root = rotateLeft(root)
+2.向树底部2-结点插入新键
+	同1所述，完全一致
+3.向一个3-结点中插入新键
+	（1）新键大于原结点中两个键，此时中间键左右均是红链接，改变两个红链接为黑链接即可
+	（2）新键小于原结点中两个键，此时将上层红链接右旋，即转化成第一种情况
+	（3）新键介于原结点两个键之间，此时将下层红链接左旋，即转化成第二种情况
+
+颜色转换：
+	如上操作后，采用一个专门的方法改变结点颜色，将子节点由红变黑，同时将父节点由黑变红（相当于将其提到了上一层）！
+	private void flipColors(Node h)
+	{
+		h.color = BLACK;
+		h.left.color = RED;
+		h.right.color = RED;
+    }
+根结点总是黑色的
+
+只需左旋、右旋和颜色变换这三种方式即可实现插入，所有情况可归纳为以下三种
+	1.如果右子结点时红色且左子结点为黑色，则将红链接左旋
+	2.如果左子节点是红色且它的左子结点也是红色，则进行右旋
+	3.如果左右结点均为红色，则进行颜色转换
+	
+	代码实现插入：
+    public void put(Key key, Value val)
+    {
+        put(root,key,val);
+        root.color=BLACK;
+    }
+    //这个实现真的牛逼
+    private Node put(Node x, Key key, Value val){
+        if (x==null)
+            return new Node(key,val,1,RED);
+        int cmp = key.compareTo(x.key);
+        if (cmp<0) x.left = put(x.left,key,val);
+        else if (cmp>0) x.right = put(x.right,key,val);
+        else x.val = val;
+		
+		//下面三个顺序不能错
+        if(isRed(x.right)&&!isRed(x.left)) x = rotateLeft(x);
+        if(isRed(x.left)&&isRed(x.left.left)) x = rotateRight(x);
+        if(isRed(x.left)&&isRed(x.right)) flipColors(x);
+
+        x.N = 1+size(x.left)+size(x.right);
+        return x;
+    }
+
+删除最小键：
+	思路是为了避免最后会被删除的键是一个2-结点的键，沿左链接向下的过程中，
+	每一步都需要保证这个结点是一个3-结点或4-结点，这样才能拿出一个往下给，
+	删除后依次向上分解4-结点
+
+
+红黑树一般情况下用2-3-4树的结构
+	1.具有二叉查找树的性质
+	2.根节点是黑色的
+	3.每个叶子节点都是黑色的空结点
+	4.任何相邻的节点不能都是红色的
+	5.每个节点，从该节点到其可达的叶子节点的路径都必须包含相同数目的黑色节点

@@ -1,0 +1,22 @@
+二叉查找树
+左子树的值均小于根节点，右子树的值均大于根节点
+
+//树
+private class Node{
+	private Key key;
+	private Value val;
+	private Node left, right;
+	private int N;  //以该节点为根节点的子树节点数
+	public Node(Key key, Value val, int N){
+		this.key = key;
+		this.val = val;
+		this.N = N;
+	}
+}
+
+插入简单：就是在查找的基础上，最后指向的空结点处放上该结点
+二叉查找树和快速排序
+
+树的深度和高度
+深度：对于任意结点n，n的深度为树根到该结点的唯一路径长，树根的深度为0
+高度：对于任意节点n，n的高度为到树叶距离的最长路径长，任意叶子结点的高度为0

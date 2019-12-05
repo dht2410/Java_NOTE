@@ -1,0 +1,3 @@
+Java虚拟机为什么叫虚拟机？
+https://blog.csdn.net/qq_34872215/article/details/79660141
+

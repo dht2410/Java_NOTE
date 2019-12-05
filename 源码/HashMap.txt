@@ -1,0 +1,103 @@
+HashMap源码分析
+https://blog.csdn.net/u010386612/article/details/80302777
+https://zhuanlan.zhihu.com/p/21673805
+public class HashMap<K,V> extends AbstractMap<K,V> implements Map<K,V>, Cloneable, Serializable
+
+实现接口Map<K,V>, Cloneable, Serializable
+
+原理（重要）：
+HashMap是基于拉链法实现的一个散列表，内部由数组和链表实现。
+
+1.数组的初始容量为16，而容量是以2的次方扩充的，一是为了提高性能使用足够大的数组，
+二是为了能使用位运算代替取模预算。
+
+2.数组是否需要扩充是通过负载因子判断的，如果当前元素个数为数组容量的0.75时，就会扩充数组。
+这个0.75就是默认的负载因子，可由构造传入。我们也可以设置大于1的负载因子，这样数组就不会扩充，
+牺牲性能，节省内存。
+
+3.为了解决碰撞，数组中的元素是单向链表类型。当链表长度到达一个阈值时（7或8），
+会将链表转换成红黑树提高性能。而当链表长度缩小到另一个阈值时（6），
+又会将红黑树转换回单向链表提高性能，这里是一个平衡点。
+
+4.对于第三点补充说明，检查链表长度转换成红黑树之前，还会先检测当前数组数组是否到达一个阈值（64），
+如果没有到达这个容量，会放弃转换，先去扩充数组。所以上面也说了链表长度的阈值是7或8，
+因为会有一次放弃转换的操作。
+
+
+字段：
+static final int DEFAULT_INITIAL_CAPACITY = 1 << 4; // aka 16
+static final int MAXIMUM_CAPACITY = 1 << 30;
+static final float DEFAULT_LOAD_FACTOR = 0.75f;
+
+// 树形化阈值，当链表节点个大于等于TREEIFY_THRESHOLD - 1时，
+// 会将该链表换成红黑树
+static final int TREEIFY_THRESHOLD = 8;
+// 解除树形化阈值，当链表节点小于等于这个值时，会将红黑树转换成普通的链表。
+static final int UNTREEIFY_THRESHOLD = 6;
+// 最小树形化的容量，即：当内部数组长度小于64时，不会将链表转化成红黑树，而是优先扩充数组。
+static final int MIN_TREEIFY_CAPACITY = 64;
+
+内部数组结点存的是链表
+内部类为static class Node<K,V> implements Map.Entry<K,V>
+
+Fields:
+transient Node<K,V>[] table; //HashMap内部数组
+transient Set<Map.Entry<K,V>> entrySet;
+transient int size; //元素数目，不是table长度
+transient int modCount; //快速失败
+int threshold;  //阈值，超过这个值时扩充数组。 threshold = capacity * loadFactor
+final float loadFactor;  //装填因子
+
+构造函数：
+public HashMap(int initialCapacity, float loadFactor) {
+	if (initialCapacity < 0)
+		throw new IllegalArgumentException("Illegal initial capacity: " +
+										   initialCapacity);
+	if (initialCapacity > MAXIMUM_CAPACITY)
+		initialCapacity = MAXIMUM_CAPACITY;
+	if (loadFactor <= 0 || Float.isNaN(loadFactor))
+		throw new IllegalArgumentException("Illegal load factor: " +
+										   loadFactor);
+	this.loadFactor = loadFactor;
+	this.threshold = tableSizeFor(initialCapacity);
+}
+
+hash函数：
+static final int hash(Object key) {
+	int h;
+	return (key == null) ? 0 : (h = key.hashCode()) ^ (h >>> 16); 
+	//^为异或，高16位和低16位异或，异或保证1和0都出现50%概率，比较平均
+}
+
+get方法：
+public V get(Object key) {
+	Node<K,V> e;
+	return (e = getNode(hash(key), key)) == null ? null : e.value;
+}
+final Node<K,V> getNode(int hash, Object key){...}
+//首先检查first = tab[(n - 1) & hash]的第一个Node，如果不相同，则判断是红黑树还是链表，分别查找
+//hash&(n - 1)相当于hash%(n-1)
+
+put方法：
+public V put(K key, V value) {
+	return putVal(hash(key), key, value, false, true);  //第一个false是查到相同的key就替换
+}
+putVal(hash(key), key, value, false, true){...}
+//1. 检查数组是否为空，执行resize()扩充；
+//2. 通过hash值计算数组索引，获取该索引位的首节点。
+//3. 如果首节点为null，直接添加节点到该索引位。
+//4. 如果首节点不为null，那么有3种情况
+	① key和首节点的key相同，覆盖value；否则执行②或③
+	② 如果首节点是红黑树节点（TreeNode），将键值对添加到红黑树。
+	③ 如果首节点是链表，将键值对添加到链表。添加之后会判断链表长度是否到达TREEIFY_THRESHOLD - 1这个阈值，“尝试”将链表转换成红黑树。
+//5. 最后判断当前元素个数是否大于threshold，扩充数组。
+
+resize方法：
+扩容数组
+在HashMap中，哈希桶数组table的长度length大小必须为2的n次方(一定是合数)，这是一种非常规的设计，
+常规的设计是把桶的大小设计为素数。HashMap采用这种非常规设计，主要是为了在取模和扩容时做优化，
+同时为了减少冲突，HashMap定位哈希桶索引位置时，也加入了高位参与运算的过程。
+
+比JDK1.7改进之处：
+1.采用红黑树，对于不平衡数据改进效果明显
+2.resize方法中不重新计算hash值，而是根据2的幂来决定，放在同样的索引还是索引+原数组长度的位置，采用位运算
