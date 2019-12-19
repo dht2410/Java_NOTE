@@ -1,0 +1,46 @@
+类文件结构
+Java的平台无关性：虚拟机可运行在任何平台上
+语言无关性：任何语言经过编译形成的class文件均能运行在java虚拟机上
+
+Java程序(*.java)->javac编译器->字节码（*.class）->java虚拟机
+
+Class文件是一组以8位字节为基础的二进制流，中间没有任何分隔符，紧凑排列，顺序和数量都被严格规定
+Class文件格式采用一种类似于结构体的伪结构来存储数据，这种结构中只有两种数据类型：无符号数和表
+
+无符号数可以用来描述数字、索引引用、数值量或者按照UTF-8编码构成的字符串值
+表是由多个无符号数或者其他表作为数据项构成的复合数据类型
+无论是无符号数还是表，当需要描述同一个类型但数量不定的多个数据时，经常使用一个前置的容量计数器加若干个连续的数据项的形式
+
+Class文件结构：
+	1.头4个字节称为魔数（magic）。用来确定这个文件是不是一个Class文件，比文件扩展名更安全。0xCAFEBABE
+	2.紧接着魔数的是4字节的版本号。第五六字节是次版本号(minor_version)，第七八字节是主版本号(major_version)。
+	3.常量池。
+		入口为一个u2类型的数据，代表常量数量值。如0x0016，十进制22，代表有21个常量
+		21个常量依次是21个常量表，表由tag及其他项组成
+	4.访问标志（access_flags）。u2，用于识别一些类或者接口层次的访问信息
+	5.类索引（this_class）、父类索引(super_class)、接口索引集合(interfaces_count+interfaces表)。类索引和父类索引各占两个字节，为u2，指向一个CONSTANT_Class_info的类
+	  描述符常量，通过该常量的索引值得到CONSTANT_Utf8_info类型的常量；接口索引为一个集合，首先一个u2的接口数量，之后是接口引用
+	6.字段表集合（field_count和fields）。
+		包括类级变量和实例级变量。
+		field包括u2的access_flags描述标志如public等，紧接着u2的name_index和description_index，都是对常量池的引用，
+		name_index是名字，description_index是类型如int，如有必要，后面还会有属性表
+	7.方法表集合（methods_count和methods）
+		Class文件对方法的描述和对字段的描述采用了相同的格式。
+		依次是access_flags、name_index、description_index和attributes_count、attributes
+		方法里的代码，编译成字节指令后存在属性“Code”里
+	8.属性表集合（attributes_count、attributes）
+		对于每个属性，它的名称都是从常量池中引用一个CONSTANT_Utf8_info类型的常量来表示
+		每个属性表的最开始都有一个u2的attribute_name_index和一个u4的attribute_length，默认为属性表长度减去6字节
+		attribute_name_index是指向一个CONSTANT_Utf8_info常量的索引
+
+字节码指令
+	操作码（1字节）后跟零至多个操作数
+	Java虚拟机采用面向操作数栈的架构，所以大多数指令都不包括操作数，只有一个操作码
+	执行模型：
+	do{
+		自动计算PC寄存器的值加1；
+		根据PC寄存器的指示位置，从字节码流中取出操作码；
+		if (字节码存在操作数) 从字节码流中取出操作数；
+		执行操作码所定义的操作；
+	}while(字节码流长度>0)
+		

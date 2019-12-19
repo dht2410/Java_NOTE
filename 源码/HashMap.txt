@@ -6,7 +6,7 @@ public class HashMap<K,V> extends AbstractMap<K,V> implements Map<K,V>, Cloneabl
 实现接口Map<K,V>, Cloneable, Serializable
 
 原理（重要）：
-HashMap是基于拉链法实现的一个散列表，内部由数组和链表实现。
+HashMap是基于拉链法实现的一个散列表，内部由数组和链表（红黑树）实现。
 
 1.数组的初始容量为16，而容量是以2的次方扩充的，一是为了提高性能使用足够大的数组，
 二是为了能使用位运算代替取模预算。
@@ -76,7 +76,7 @@ public V get(Object key) {
 }
 final Node<K,V> getNode(int hash, Object key){...}
 //首先检查first = tab[(n - 1) & hash]的第一个Node，如果不相同，则判断是红黑树还是链表，分别查找
-//hash&(n - 1)相当于hash%(n-1)
+//hash&(n - 1)相当于hash%n
 
 put方法：
 public V put(K key, V value) {
