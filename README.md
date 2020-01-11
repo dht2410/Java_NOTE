@@ -1,2 +1,9 @@
 # Java_NOTE
- some note of computer and programing learning
+**一些学习Java以及与Java相关的计算机知识，包括：**
+
+- **JVM**
+- **JDK源码分析**
+- **Java基础知识补充**
+- **算法（Java实现）**
+- **计算机网络**
+

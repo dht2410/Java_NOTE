@@ -1,0 +1,190 @@
+#### 最小生成树
+
+切分定理：在一幅加权图中，给定任意的切分，它的横切边（树内顶点集合和树外顶点集合的连线集合）中权重最小者必然属于最小生成树。
+
+##### （1）加权无向图的表示
+
+```java
+public class EdgeWeightedGraph {
+    private final int V;  //顶点总数
+    private int E;        //边的总数
+    private LinkedList<Edge>[] adj;
+    public EdgeWeightedGraph(int V){
+        this.V=V;
+        adj=(LinkedList<Edge>[]) new LinkedList[V];
+        for(int i=0;i<V;i++)
+            adj[i] = new LinkedList<>();
+    }
+    public int V(){
+        return V;
+    }
+    public int E(){
+        return E;
+    }
+    public void addEdge(Edge e){
+        int v = e.either();
+        int w = e.other(v);
+        adj[v].add(e);
+        adj[w].add(e);
+        E++;
+    }
+    public Iterable<Edge> adj(int v){
+        return adj[v];
+    }
+    public Iterable<Edge> Edges(){
+        LinkedList<Edge> edges = new LinkedList<>();
+        for(int i=0;i<V;i++){
+            for(Edge e:adj[i])
+                if (e.other(i)>i) edges.add(e);
+        }
+        return edges;
+    }
+}
+class Edge implements Comparable<Edge>{
+    private final int v;
+    private final int w;
+    private final double weight;
+    public Edge(int v, int w, double weight){
+        this.v = v;
+        this.w = w;
+        this.weight = weight;
+    }
+    public double weight(){
+        return weight;
+    }
+    public int either(){
+        return v;
+    }
+    public int other(int vertex){
+        if(vertex==v) return w;
+        else if(vertex ==w) return v;
+        else throw new RuntimeException("Inconsistant Edge");
+    }
+    @Override
+    public int compareTo(Edge that) {
+        if (this.weight<that.weight) return -1;
+        else if(this.weight>that.weight) return 1;
+        else return 0;
+    }
+}
+```
+
+##### (2) Prim算法
+
+```java
+/*
+* 最下生成树的Prim算法的延迟实现
+* 基于贪心算法
+* */
+public class LazyPrimMST {
+    private boolean[] marked;  //记录是否加入生成树
+    private Deque<Edge> mst;   //生成树的边
+    private HeapbyArray<Edge> pq;   //横切边（包括失效的边），利用一个优先队列实现
+
+    public LazyPrimMST(EdgeWeightedGraph G){
+        marked = new boolean[G.V()];
+        mst = new Deque<>();
+        pq = new HeapbyArray<>(100);
+        visit(G,0);
+        while(!pq.isEmpty()){
+            Edge e = pq.delMAX();
+            int v = e.either();
+            int w = e.other(v);
+            if (marked[v]&&marked[w])
+                continue;
+            mst.pushleft(e);
+            if (!marked[v]) visit(G,v);
+            if (!marked[w]) visit(G,w);
+        }
+    }
+    private void visit(EdgeWeightedGraph G, int v){
+        marked[v]=true;
+        for(Edge e:G.adj(v)){
+            int w = e.other(v);
+            if(!marked[w]) pq.insert(e);
+        }
+    }
+    public Iterable<Edge> edges(){
+        return mst;
+    }
+    public double weights(){
+        int sum = 0;
+        for (Edge e:mst){
+            sum+=e.weight();
+        }
+        return sum;
+    }
+}
+```
+
+```java
+import java.util.HashMap;
+/*
+* prim算法的即时实现版本
+* */
+public class PrimMST {
+    private Edge[] edgeTo;  //某节点距离树最近的边
+    private double[] distTo;  //某节点距离树最近的距离
+    private boolean[] marked;  //是否加入树
+    private HashMap<Integer,Double> pq;  //有效横切边
+    public PrimMST(EdgeWeightedGraph G){
+        edgeTo = new Edge[G.V()];
+        distTo = new double[G.V()];
+        for(int i=0;i<G.V();i++)
+            distTo[i]=Double.MAX_VALUE;
+        marked = new boolean[G.V()];
+        pq = new HashMap<>();
+
+        distTo[0]=0;
+        pq.put(0,0.0);
+        while(!pq.isEmpty()){
+            int key = min(pq);
+            pq.remove(key);
+            visit(G,key);
+        }
+    }
+    private int min(HashMap<Integer,Double> pq){
+        int ret = -1;
+        double mini = Double.MAX_VALUE;
+        for(int key:pq.keySet()){
+            if (pq.get(key)<mini)
+            {
+                mini = pq.get(key);
+                ret = key;
+            }
+        }
+        return ret;
+    }
+    private void visit(EdgeWeightedGraph G, int v){
+        marked[v]=true;
+        for( Edge e: G.adj(v)){
+            int w = e.other(v);
+            if(marked[w])
+                continue;
+            if(e.weight()<distTo[w]){
+                distTo[w]=e.weight();
+                edgeTo[w]=e;
+                pq.put(w,e.weight());
+            }
+        }
+    }
+    public double weight(){
+        double sum = 0;
+        for (int i=0;i<distTo.length;i++)
+            sum+=distTo[i];
+        return sum;
+    }
+    public static void main(String[] args){
+        EdgeWeightedGraph ewg = new EdgeWeightedGraph(3);
+        ewg.addEdge(new Edge(0,1,0.1));
+        ewg.addEdge(new Edge(2,1,0.2));
+        ewg.addEdge(new Edge(0,2,0.3));
+        PrimMST prim = new PrimMST(ewg);
+        System.out.println(prim.weight());
+    }
+}
+```
+
+##### (3) Kruskal算法
+
+从权重最小的边开始依次往上找，如果不构成环，则说明该边在最小生成树中。
