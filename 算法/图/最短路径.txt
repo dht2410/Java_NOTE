@@ -1,0 +1,210 @@
+### 最短路径
+
+##### （1）加权有向图的数据结构
+
+```java
+import java.util.LinkedList;
+/*
+* 加权有向图数据类型EdgeWeightedDigraph
+* 有向边DirectedEdge
+* */
+public class EdgeWeightedDigraph {
+    private final int V;
+    private int E;
+    private LinkedList<DirectedEdge>[] adj;
+    public EdgeWeightedDigraph(int V){
+        this.V=V;
+        adj = (LinkedList<DirectedEdge>[])new LinkedList[V];
+        for(int i=0;i<V;i++){
+            adj[i]=new LinkedList<DirectedEdge>();
+        }
+    }
+    public int V(){return V;}
+    public int E(){return E;}
+    public void addEdge(DirectedEdge e){
+        adj[e.from()].add(e);
+        E++;
+    }
+    public Iterable<DirectedEdge> adj(int v){
+        return adj[v];
+    }
+    public Iterable<DirectedEdge> edges(){
+        LinkedList<DirectedEdge> edges = new LinkedList<>();
+        for (int i=0;i<V;i++){
+            for(DirectedEdge e:adj[i])
+                edges.add(e);
+        }
+        return edges;
+    }
+}
+
+class DirectedEdge {
+    private final int v;
+    private final int w;
+    private final double weight;
+    public DirectedEdge(int v, int w, double weight){
+        this.v = v;
+        this.w = w;
+        this.weight = weight;
+    }
+    public int from(){
+        return v;
+    }
+    public int to(){
+        return w;
+    }
+    public double weight(){
+        return weight;
+    }
+}
+```
+
+##### （2）Dijkstra算法
+
+思想：从起点A开始往外探测，此时距离A最短的那个点B肯定会在生成树中。再从B往外探，依然是总共被探到的但是没有被加入到树中的距离A最短的点，在树中。反证可以证明。
+
+无法解决负权重问题，Dijkstra算法基于的假设为，添加一条边会使路径变长
+
+```java
+import java.util.LinkedList;
+import java.util.Stack;
+
+public class DijkstraSP {
+    private int[] edgeTo;  //记录该点的父节点
+    private double[] distTo;  //到该点的最短距离
+    private LinkedList<Integer> pq;  //需要被检测的边，也就是需要被比较加入树的点
+    private int s;  //起点
+    public DijkstraSP(EdgeWeightedDigraph G, int s){
+        this.s = s;
+        edgeTo = new int[G.V()];
+        distTo = new double[G.V()];
+        for(int i=0;i<G.V();i++)
+            distTo[i]=Double.POSITIVE_INFINITY;
+        pq = new LinkedList<>();
+
+        distTo[s]=0;
+        pq.add(s);
+        while(!pq.isEmpty()){
+            int v = minDist(pq);
+            pq.remove(new Integer(v));
+            visit(G,v);
+        }
+    }
+    private int minDist(LinkedList<Integer> pq){
+        double min = Double.POSITIVE_INFINITY;
+        int ret = -1;
+        for(int i:pq){
+            if(distTo[i]<min){
+                ret = i;
+                min = distTo[i];
+            }
+        }
+        return ret;
+    }
+    private void visit(EdgeWeightedDigraph G, int v){
+        for (DirectedEdge e:G.adj(v)){
+            int w = e.to();
+            if(distTo[v]+e.weight()<distTo[w]){
+                distTo[w]=distTo[v]+e.weight();
+                edgeTo[w]=v;
+                if(!pq.contains(w))
+                    pq.add(w);
+            }
+        }
+    }
+    public double distTo(int n){
+        return distTo[n];
+    }
+    public Iterable<Integer> edgeTo(int n){
+        Stack<Integer> path = new Stack<>();
+        for(int x=n;x!=s;x=edgeTo[x]){
+            path.push(x);
+        }
+        path.push(s);
+        return path;
+    }
+}
+```
+
+##### （3）无环加权有向图的最短路径算法
+
+```java
+//利用无环，先进行拓扑排序，按拓扑排序的顺序放松节点，这样放松过后的节点不会再被访问，它的distTo最小值一定是到达它的最小值
+//由于每个顶点和边都被访问了一次，时间复杂度与E+V成正比
+//可接受负权重
+public class AcyclicSP{
+    private DirectedEdge[] edgeTo;
+    private double[] distTo;
+    public AcyclicSP(EdgeWeightedDigraph G, int s){
+        edgeTo = new DirectedEdge[G.V()];
+        distTo = new double[G.V()];
+        for (int i=0;i<G.V();i++)
+            distTo[i]=Double.POSITIVE_INFINITY;
+        distTo[s]=0.0;
+        
+        Topological top = new Topological(G);
+        for(int v: top.order())
+            relax(G,v);  //放松每个顶点，即为将该顶点指向的点的distTo改为此时的最小值
+    }
+}
+```
+
+##### （4）最长路径
+
+将（3）中图的权重变为原图的相反数，求最短路径
+
+##### （5）并行任务调度
+
+创建一幅无环加权有向图，其中包含一个起点s和一个终点t且每个任务都对应着两个顶点（一个起始顶点和一个结束顶点）。对于每个任务都有一条从它的起始顶点指向结束顶点的边，边的权重为任务所需时间。对于每条优先级限制v→w，添加一条从v的结束顶点指向w的起始顶点的权重为零的边。我们还需要为每个任务添加一条从起点指向该任务的起始顶点的权重为零的边和一条从该任务的结束顶点到终点的权重为零的边。最终计算从起点到终点的最长路径。
+
+##### （6）含负权重和环的加权有向图的最短路径问题
+
+Bellman-Ford算法：假设没有负权重环，则以任意顺序放松有向图中的所有边，重复V轮，即可找到最小路径树。可归纳证明，在第i轮后能够得到s到vi的最短路径。i不会大于V-1。每一轮之后都往下多探了一层
+
+**基于队列的Bellman-Ford算法**实现：只有上一轮中distTo值变化的顶点才会被加入队列，加入队列的顶点在下一论往下探，每轮都可以多探一层。
+
+在出现负权重环后queue不会变为空。
+
+```java
+public class BellmanFordSP{
+    private double[] distTo;
+    private DirectedEdge[] edgeTo;
+    private boolean[] onQ;    //记录有没有在队列里，防止重复加入
+    private Queue<Integer> queue;   //队列里加入每轮distTo被改变的顶点
+    private int cost;  //relax方法被调用的次数
+    private Iterable<DirectedEdge> cycle;
+    public BellmanFordSP(EdgeWeightedDigraph G, int s){
+        edgeTo = new DirectedEdge[G.V()];
+        distTo = new double[G.V()];
+        for (int i=0;i<G.V();i++)
+            distTo[i]=Double.POSITIVE_INFINITY;
+        distTo[s]=0.0;
+        onQ = new boolean[G.V()];
+        queue = new queue<>();
+        
+        queue.enqueue(s);
+        onQ[s]=true;
+        while(!queue.isEmpty()&&!hasNegativeCycle()){
+            int v = queue.dequeue();
+            onQ[v] = false;
+            relax(G,v);
+        }
+    }
+    private void relax(EdgeWeightedDigraph G, int v){
+        for(DirectedEdge e:G.adj(v)){
+            int w = e.to();
+            if(distTo[w]>distTo[v]+e.weight()){
+                distTo[w]=distTo[v]+e.weight();
+                edgeTo[w]=e;
+                if(!onQ[w]){
+                    queue.enqueue(w);
+                    onQ[w]=true;
+                }
+            }
+            if(cost++%G.V()==0)
+                findNegativeCycle();
+        }
+    }
+}
+```
+
