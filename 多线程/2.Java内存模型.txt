@@ -5,7 +5,7 @@
 两个关键问题：
 
 - 线程之间如何**通信**（共享内存和消息传递，Java采用共享内存）
-- 线程之间如何**同步**（共享内存，同步是显示的，必须显示指定谁在谁前）
+- 线程之间如何**同步**（共享内存，同步是显式的，必须显式指定谁在谁前）
 
 线程通信步骤：
 
@@ -68,3 +68,126 @@ volatile读：当读一个volatile变量时，JMM会把该线程对应的本地�
 
 1. volatile写之前的操作不会被编译器重排序到volatile写之后。
 2. volatile读之后的操作不会被编译器重排序到volatile读之前。
+
+#### 5. 锁的内存语义
+
+（1）锁的释放和获取的内存语义
+
+1. 当线程释放锁时，JMM会把该线程对应的本地内存中的共享变量刷新到主内存中。
+2. 当线程获取锁时，JMM会把线程对应的本地内存置为无效。从而使得被监视器保护的临界区代码必须从主内存中读取共享变量。
+3. 锁释放与volatile写有相同的语义，锁获取与volatile读有相同的语义。
+
+（2）锁内存语义的实现
+
+```java
+class ReentrantLockExample{
+    int a = 0;
+    ReentranLock lock = new ReentranLock();
+    
+    public void writer(){
+        lock.lock();         //获取锁
+        try{
+            a++;
+        }finally{
+            lock.unlock();   //释放锁
+        }
+    }
+    
+    public void reader(){
+        lock.lock();         //获取锁
+        try{
+            int i = a;
+        }finally{
+            lock.unlock();   //释放锁
+        }
+    }
+}
+```
+
+ReentrantLock提供了两种锁特性：公平锁和非公平锁
+
+公平锁和非公平锁的区别是：
+        如果在绝对时间上，先对锁进行获取的请求一定先被满足，那么这个锁是公平的，反之，是不公平的。公平的获取锁，也就是等待时间最长的线程最优先获取锁，也可以说锁获取是顺序的。ReentrantLock提供了一个构造函数，能够控制锁是否是公平的。
+
+具体见ReentrantLock源码
+
+公平锁和非公平锁的内存语义：
+
+- 公平锁和非公平锁释放时，最后都要写一个volatile变量state
+- 公平锁获取时，首先会读volatile变量state
+- 非公平锁获取锁时，首先会用CAS更新volatile变量，这个操作同时具有volatile读和volatile写的内存语义
+
+ReentrantLock源码分析https://www.cnblogs.com/takumicx/p/9402021.html
+
+- 1.同步队列是个先进先出(FIFO)队列,获取锁失败的线程将构造结点并加入队列的尾部,并阻塞自己。如何才能线程安全的实现入队是后面讲解的重点,毕竟我们在讲锁的实现,这部分代码肯定是不能用锁的。
+- 2.队列首结点可以用来表示当前正获取锁的线程。
+- 3.当前线程释放锁后将尝试唤醒后续处结点中处于阻塞状态的线程。
+
+#### 6. final域的内存语义
+
+final域的重排序规则：
+
+1. 在构造函数内对一个final域的写入，与随后把这个被构造对象的引用赋值给一个引用变量，这两个操作之间不能重排序。编译器会在final域写之后，构造函数return之前，插入一个StoreStore屏障。这个屏障禁止处理器把final域的写重排序到构造函数之外。即，在对象引用为任意线程可见之前，对象的final域已经被正确初始化过了。
+2. 初次读一个包含final域的对象的引用，与随后初次读这个final域，这两个操作之间不能重排序。
+
+final域为一个引用类型：
+
+​	在构造函数对一个final引用对象成员域的写入，与随后在构造函数外把这个被构造对象的引用赋值给一个引用变量，这两个操作不能重排序。
+
+​	final引用不能从构造函数中“逸出”。
+
+```Java
+final int i;
+static FinalRefrenceEscapeExample obj;
+public FinalRefrenceEscapeExample(){
+    i = 1;        //1
+    obj = this;   //2
+}
+//2和1可能会重排序，此时，线程A构造函数执行了2，未执行1，线程B读到obj，操作obj.i，出现错误
+```
+
+**只要对象时正确构造的（被构造对象的引用在构造函数中没有“逸出”），那么不需要使用同步（lock和volatile）就可以保证线程安全。**
+
+#### 7. happens-before
+
+happens-before是对程序员的概念，但实际执行时，编译器和处理器会进行重排序。
+
+start()规则：如果线程A执行操作ThreadB.start()，那么线程A的ThreadB.start()操作happens-before于线程B中的任意操作。
+
+join()规则：如果线程A执行操作ThreadB.join()并成功返回，那么线程B中的任意操作happens-before于线程A从ThreadB.join()成功返回。
+
+#### 8. 双重检查锁定于延迟初始化
+
+在Java程序中，有时需要采用延迟初始化来降低初始化类和创建对象的开销。
+
+为避免synchronized的巨大开销，使用**双重检查锁定（错误）**：
+
+```java
+public class DoubleCheckedLocking{
+    private static Instance instance;
+    public static Instance getInstance(){
+        if (instance==null){
+            synchronized(DoubleCheckedLocking.class){
+                if(instance == null)
+                	instance = new Instance();     //问题出在这里
+            }
+        }
+        return instance;
+    }
+}
+```
+
+问题出在instance=new Instance()不是原子操作，分3步：
+
+1. 分配对象的内存空间
+2. 初始化对象
+3. instance指向该内存空间
+
+其中2和3会重排序，在单线程没问题，但在多线程中，有可能线程A执行了1和3后，线程B执行if语句，此时对象不为空但没有初始化，返回错误。
+
+##### （1）基于volatile的解决方案
+
+将instance声明为volatile型，此时2和3不会重排序。
+
+##### （2）基于类初始化的解决方案
+
