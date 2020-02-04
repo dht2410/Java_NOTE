@@ -64,6 +64,8 @@ volatile读：当读一个volatile变量时，JMM会把该线程对应的本地�
 
 总结：线程A写一个volatile变量，实质上是线程A向接下来读这个变量的线程发了消息；线程B读这个变量，实质上是接受到了这个消息。**这个过程实质上是线程A通过主内存向线程B发送消息。**
 
+**volatile修饰引用变量的问题即它只能保证引用本身的可见性，并不能保证内部字段的可见性，如果想要保证内部字段的可见性最好使用CAS的数据结构。所以尽量不要用volatile修饰引用变量。**
+
 （3）volatile内存语义的实现
 
 1. volatile写之前的操作不会被编译器重排序到volatile写之后。
@@ -191,3 +193,27 @@ public class DoubleCheckedLocking{
 
 ##### （2）基于类初始化的解决方案
 
+```java
+public class InstanceFactory{
+    private static class InstanceHolder{
+        public static Instance instance = new Instance();
+    }
+    public static Instance getInstance(){
+        return InstanceHolder.instance;
+    }
+}
+```
+
+多个线程可能在同一时间尝试去初始化同一个类或接口。因此在Java中的初始化一个类或者接口时，需要做细致的同步处理。
+
+每个线程至少获取一次Class对象锁来确保这个类已经被初始化过了。
+
+**第1阶段**：Class对象还没有被初始化，线程A和B一起想初始化，线程A拿到Class对象的初始化锁，并设置state为initializing，然后释放锁。
+
+**第2阶段**：A进行初始化，B拿到锁，检测到state为initializing，释放初始化锁，在初始化锁的condition中等待。
+
+**第3阶段**：A拿到锁，设置state=initialized，释放锁，唤醒condition中等待的线程。A的类初始化过程完成。
+
+**第4阶段**：B拿到锁，检测到state为initialized，释放锁，B的类初始化过程完成。
+
+**第5阶段**：C拿到锁，检测到state为initialized，释放锁，C的类初始化过程完成。
