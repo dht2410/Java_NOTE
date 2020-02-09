@@ -1,0 +1,138 @@
+### 锁
+
+Java并发包：**使用和实现**
+
+#### 1. Lock接口
+
+锁显式地获取锁，synchronized关键字隐式地获取锁
+
+```java
+Lock lock = new ReentrantLock();
+lock.lock();  //lock()写在try外面，因为当try块中异常抛出时，锁会被无故释放
+try{
+    
+}finally{
+    lock.unlock();
+}
+```
+
+锁具有的synchronized关键字不具备的特性：
+
+- 尝试非阻塞地获取锁 （void lockInterruptibly() throws InterruptedException）
+- 能被中断地获取锁 (boolean tryLock())
+- 超时获取锁 (boolean tryLock(long time, TimeUnit unit) throws InterruptedException)
+
+#### 2. 队列同步器（AbstractQueuedSynchronizer）
+
+构建锁或者其他同步组件的基础框架，**使用了一个int成员变量表示同步状态**，通过**内置的FIFO队列**来完成资源获取线程的排队工作。
+
+同步器是实现锁的关键。**锁是面向使用者的**，它定义了使用者和锁交互的接口，隐藏了实现细节；**同步器是面向锁的实现者**，简化了锁的实现方式，屏蔽了同步状态管理、线程的排队、等待和唤醒等底层操作。
+
+对同步状态的获取和修改：
+
+- getState()
+- setState(int newState)
+- compareAndSetState(int expect, int update)
+
+```java
+class Mutex implement Lock{
+    //静态内部类，自定义同步器
+    private static class Sync extends AbstractQueuedSynchronizer{
+        ...
+        //实现tryAcquire、tryRelease等操作
+    }
+    private Sync sync = new Sync();
+    
+    //仅需将操作代理到Sync上即可
+    public void lock(){sync.acquire(1);}
+    public boolean tryLock(){return sync.tryAcquire(1);}
+    //...其他Lock接口方法
+}
+```
+
+##### AbstractQueuedSynchronizer的实现分析
+
+##### 1. 同步队列
+
+同步器内部的同步队列，是一个**FIFO的双向队列**。当线程获取同步状态失败时，同步器会将当前线程和其状态构成一个Node加入同步队列，同时阻塞当前线程。当同步状态释放时，会把首结点的线程唤醒，使其尝试获取同步状态。
+
+```java
+static final class Node{
+    //字段
+    volatile int waitStatus;  //包含5种状态
+    volatile Node prev;       //前驱节点
+    volatile Node next;       //后继节点
+    volatile Thread thread;   //当前线程
+    Node nextWaiter;          //等待队列中的后继节点
+}
+```
+
+同步器拥有首节点（head）和尾节点（tail），没有获得同步状态的节点会被加入队列尾部。
+
+```java
+class AbstractQueuedSynchronizer{
+    //同步器字段
+    private transient volatile Node head;
+    private transient volatile Node tail;
+    private volatile int state;
+}
+```
+
+当一个线程没有得到锁，就会被包成Node加入到队列的尾结点去。这个过程要保证线程安全，基于CAS的设置尾结点的方法：compareAndSetTail(Node expect, Node update)，它需要传递当前线程认为的尾结点和当前节点，只有设置成功才正式与尾结点建立联系。
+
+```java
+//入队操作，没有初始化先初始化，返回尾结点的前驱
+//enq方法通过CAS将并发添加节点的请求串行化
+private Node enq(final Node node) {
+    for (;;) {
+        Node t = tail;
+        if (t == null) { // Must initialize
+            if (compareAndSetHead(new Node()))
+                tail = head;
+        } else {
+            node.prev = t;
+            if (compareAndSetTail(t, node)) {
+                t.next = node;
+                return t;
+            }
+        }
+    }
+}
+
+//唤醒后继节点
+private void unparkSuccessor(Node node) {
+    /*
+         * If status is negative (i.e., possibly needing signal) try
+         * to clear in anticipation of signalling.  It is OK if this
+         * fails or if status is changed by waiting thread.
+         */
+    int ws = node.waitStatus;
+    if (ws < 0)
+        compareAndSetWaitStatus(node, ws, 0);
+
+    /*
+         * Thread to unpark is held in successor, which is normally
+         * just the next node.  But if cancelled or apparently null,
+         * traverse backwards from tail to find the actual
+         * non-cancelled successor.
+         */
+    Node s = node.next;
+    if (s == null || s.waitStatus > 0) {
+        s = null;
+        for (Node t = tail; t != null && t != node; t = t.prev)
+            if (t.waitStatus <= 0)
+                s = t;
+    }
+    if (s != null)
+        LockSupport.unpark(s.thread);
+}
+
+
+private final boolean compareAndSetTail(Node expect, Node update) {
+    return unsafe.compareAndSwapObject(this, tailOffset, expect, update);
+}
+```
+
+同步队列首结点是获取同步状态成功的节点，首结点的线程在释放同步状态时，会唤醒后继节点。
+
+设置首结点是通过获取同步状态成功的线程来完成的。由于只有一个线程获取到锁，因此不需要CAS操作。
