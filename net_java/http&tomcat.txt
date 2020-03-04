@@ -1,0 +1,47 @@
+web服务器Tomcat是服务器上运行的软件
+
+- bin: 可执行文件
+
+  conf: 配置文件    server.xml
+
+  lib: jar包，类库
+
+  logs: 日志
+
+  temp：临时目录
+
+  webapps: 开发好的放到这里
+
+  work: 
+
+bin下的startup启动tomcat服务器
+
+启动失败原因：
+
+1. JAVA_HOME没有指向JDK，tomcat运行需要java运行环境
+2. 端口冲突，更改server.xml的端口号，或者关闭占用8080端口的进程
+
+
+
+**web应用的目录结构**
+
+webapps下
+
+- mail
+
+  ​       html、jsp、css、js
+
+  ​       WEB-INF目录（受保护，外界不能直接访问）
+
+  - ​          classes目录，存java类
+  - ​          lib目录,java类运行需要的jar包
+  - ​          web.xml
+
+
+
+Eclipse绑定tomcat，直接创建tomcat APP
+
+默认访问mail下的index.html
+
+对工程run on server会将WebContent下的文件复制到tomcat的webapps下
+
