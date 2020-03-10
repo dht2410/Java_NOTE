@@ -1,0 +1,102 @@
+## HttpServletResponse
+
+为ServletResponse的子接口，功能和方法更多
+
+response运行过程
+
+![image-20200308181340781](C:\Users\dht24\AppData\Roaming\Typora\typora-user-images\image-20200308181340781.png)
+
+**设置响应头**
+
+**[addHeader](mk:@MSITStore:D:\api文档\java_ee_api_中英文对照版.chm::/javax/servlet/http/HttpServletResponse.html#addHeader(java.lang.String, java.lang.String))**`(`[String](http://java.sun.com/j2se/1.5/docs/api/java/lang/String.html)` name, `[String](http://java.sun.com/j2se/1.5/docs/api/java/lang/String.html)` value)` 
+
+**[addIntHeader](mk:@MSITStore:D:\api文档\java_ee_api_中英文对照版.chm::/javax/servlet/http/HttpServletResponse.html#addIntHeader(java.lang.String, int))**`(`[String](http://java.sun.com/j2se/1.5/docs/api/java/lang/String.html)` name, int value)` 
+
+**[addDateHeader](mk:@MSITStore:D:\api文档\java_ee_api_中英文对照版.chm::/javax/servlet/http/HttpServletResponse.html#addDateHeader(java.lang.String, long))**`(`[String](http://java.sun.com/j2se/1.5/docs/api/java/lang/String.html)` name, long date)` 
+
+add的键值对可以重复
+
+
+
+**[setHeader](mk:@MSITStore:D:\api文档\java_ee_api_中英文对照版.chm::/javax/servlet/http/HttpServletResponse.html#setHeader(java.lang.String, java.lang.String))**`(`[String](http://java.sun.com/j2se/1.5/docs/api/java/lang/String.html)` name, `[String](http://java.sun.com/j2se/1.5/docs/api/java/lang/String.html)` value)` 
+
+**[setDateHeader](mk:@MSITStore:D:\api文档\java_ee_api_中英文对照版.chm::/javax/servlet/http/HttpServletResponse.html#setDateHeader(java.lang.String, long))**`(`[String](http://java.sun.com/j2se/1.5/docs/api/java/lang/String.html)` name, long date)` 
+
+**[setIntHeader](mk:@MSITStore:D:\api文档\java_ee_api_中英文对照版.chm::/javax/servlet/http/HttpServletResponse.html#setIntHeader(java.lang.String, int))**`(`[String](http://java.sun.com/j2se/1.5/docs/api/java/lang/String.html)` name, int value)`
+
+set会覆盖
+
+
+
+```java
+	protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		// 设置状态码
+		response.setStatus(302);
+        // 重定向Location为值"/WEB14/responseTest"
+		response.setHeader("Location", "/WEB14/responseTest");
+	}
+```
+
+
+
+```java
+//设置response查询码表为UTF-8
+response.setCharacterEncodeing("UTF-8");
+//告知客户端编码方式
+response.setHeader(text/html;charset="UTF-8")
+PrintWriter writer = response.getWriter();
+//往response缓冲区写，默认查iso-8859-1码表
+//给客户端设置在html的meta标签里
+writer.write("yesabc");
+```
+
+```java
+//使用response获得字节输出流
+ServletOutputStream stream = response.getOutputStream();
+//获得服务器上的图片,文件下载
+String realPath = this.getServletContext().getRealPath("a.jpg");
+InputStream in = new FileInputStream(realPath);
+//先写进来，再写出去
+int len = 0;
+byte[] buffer = new byte[1024];
+while((len=in.read(buffer))>0){
+    out.write(buffer,0,len);
+}
+in.close();
+out.close();
+```
+
+什么情况下会文件下载？
+
+浏览器不能解析的文件就下载
+
+什么情况下需要在服务器编写下载程序？
+
+```java
+protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+    
+	String filename = request.getParameter("filename");
+    //要下载的文件类型
+    response.setContextType(this.getServletContext().getMiniType(filename));
+    //告诉客户端该文件不是直接解析，而是以附件形式打开（下载）
+    response.setHeader("content-disposition","attachment;filename="+filename);
+    //获取文件绝对路径
+    String path = this.getServletContext().getRealPath("download/"+filename);
+    //获得该文件的输入流
+    InputStream in = new FileInputStream(path);
+    //获得输出流
+    ServletOutputStream out = response.getOutputStream();
+    int len=0;
+    byte[] buffer = new byte[1024];
+    while((len=in.read(buffer))>0){
+        out.write(buffer,0,len);
+    }
+        
+	}
+```
+
+response细节：
+
+1）response获得的流不需要手动关闭，Tomcat会自动关
+
+2）response.getWriter()和response.getOutputStream()不能同时获得

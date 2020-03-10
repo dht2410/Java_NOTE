@@ -1,0 +1,51 @@
+## request
+
+HttpServletRequest
+
+获得请求行、请求头，请求体
+
+请求行
+
+String getContextPath()    获得web应用名称
+
+请求头
+
+String getHeader(String name)    获得请求头的key对应的值
+
+Enumeration getHeaders(String name)
+
+```java
+Enumeration<String> names = request.getHeaderNames();
+while(names.hasMoreElements()) {
+    String name = names.nextElement();
+    String val = request.getHeader(name);
+    System.out.println(name+" : "+val);
+```
+
+请求体(get方法也能获得)
+
+String getParameter(String name)  
+
+String[] getParameterValues(String name)  
+
+
+
+request的其他功能
+
+（1）request是个域对象（存储数据的区域对象）
+
+作用范围内，一次请求中的request是公用的
+
+```
+ServletContext：
+创建：服务器启动
+销毁：服务器关闭
+域的作用范围：整个web应用
+request：
+创建：访问时创建request
+销毁：响应结束request销毁
+域的作用范围：一次请求中
+```
+
+（2）request可以完成请求转发
+

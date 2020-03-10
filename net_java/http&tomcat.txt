@@ -45,3 +45,7 @@ Eclipse绑定tomcat，直接创建tomcat APP
 
 对工程run on server会将WebContent下的文件复制到tomcat的webapps下
 
+原mail文件夹下的都在eclipse的workplace下
+
+每发布一个都会在servers的这个文件夹下的server.xml记录一下，所以删了tomcat中的工程，也要改xml
+

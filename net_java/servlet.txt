@@ -1,0 +1,213 @@
+## Servlet
+
+Servlet 运行在服务端的Java小程序，是sun公司提供一套规范（接口），用来处理客户端请求、响应给浏览器的动态资源。但**servlet的实质就是java代码**，通过java的API动态的向客户端输出内容.
+
+### Servlet规范：三个技术点
+
+1. Servlet技术
+2. filter技术
+3. listener技术
+
+实现步骤：
+
+1. 创建类实现Servlet接口
+2. 覆盖service方法
+3. 在web.xml进行servlet配置
+
+
+
+接口方法：
+
+```java
+	//第一次访问时执行，即servlet对象创建时执行
+	//ServletConfig表示改对象的配置信息
+	public void init(ServletConfig config) throws ServletException {
+		// TODO Auto-generated method stub
+	}
+
+	//每次请求都会执行
+	//ServletRequest封装了内部Http请求的信息
+	//ServletResponse封装了响应信息
+	public void service(ServletRequest req, ServletResponse res) throws ServletException, IOException {
+		// TODO Auto-generated method stub
+		
+	}
+
+	//servlet销毁时执行
+	public void destroy() {
+		// TODO Auto-generated method stub
+		
+	}
+```
+
+
+
+Servlet生命周期：
+
+**默认**第一次访问Servlet时创建该对象
+
+服务器关闭Servlet就销毁了
+
+service(ServletRequest req, ServletResponse res)方法每次访问都执行
+
+
+
+### 配置：
+
+### url-pattern的配置方式：
+
+1）完全匹配 访问的资源与配置的资源完全相同才能访问到
+
+|      |                                                              |
+| ---- | ------------------------------------------------------------ |
+|      | ![img](file:///C:/Users/dht24/AppData/Local/Temp/msohtmlclip1/01/clip_image001.png) |
+
+2）目录匹配 格式：/虚拟的目录../*  *代表任意
+
+|      |                                                              |
+| ---- | ------------------------------------------------------------ |
+|      | ![img](file:///C:/Users/dht24/AppData/Local/Temp/msohtmlclip1/01/clip_image002.png) |
+
+
+3）扩展名匹配 格式：*.扩展名
+
+|      |                                                              |
+| ---- | ------------------------------------------------------------ |
+|      | ![img](file:///C:/Users/dht24/AppData/Local/Temp/msohtmlclip1/01/clip_image003.png) |
+
+
+
+
+
+### 服务器启动实例化Servlet配置
+
+Servlet的何时创建：**默认**第一次访问时创建
+
+为什么是默认？
+
+当在servlet的配置时 加上一个配置 <load-on-startup> servlet对象在服务器启动   时就创建
+
+<load-on-startup>3</load-on-startup> 
+
+3代表优先级
+
+
+
+### 缺省Servlet
+
+可以将url-pattern配置一个/，代表该servlet是缺省的servlet
+
+什么是缺省的servlet？
+
+当你访问资源地址所有的servlet都不匹配时 ， 缺省的servlet负责处理
+
+web应用中所有的资源的响应都是servlet负责，包括静态资源
+
+
+
+### 欢迎页面
+
+index.html
+
+
+
+
+
+### 应用
+
+```java
+public class SecondServlet extends HttpServlet {
+	protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		response.getWriter().write("doGet...");
+	}
+
+	protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		doGet(request, response);
+	}
+
+}
+```
+
+代码中，SecondServlet为自己创建的类，他继承了HttpServlet，HttpServlet继承了抽象类GenericServlet，该类实现了Servlet接口，
+
+HttpServlet中有方法
+
+```java
+
+protected void service(HttpServletRequest req, HttpServletResponse resp){
+    //决定选择doGet还是doPost还是别的
+    //帮你把Get和Post请求判定了
+}
+
+//这个实现接口的方法将req和res强转成HttpServletRequest和    public void service(ServletRequest req, ServletResponse res)
+        throws ServletException, IOException {
+
+        HttpServletRequest  request;
+        HttpServletResponse response;
+
+        try {
+            request = (HttpServletRequest) req;
+            response = (HttpServletResponse) res;
+        } catch (ClassCastException e) {
+            throw new ServletException("non-HTTP request or response");
+        }
+        service(request, response);
+    }
+```
+
+
+
+### ServletContext对象（Servlet上下文）
+
+代表一个web应用的环境对象，内部封装的是该web应用的信息。一个web应用只有一个ServletContext对象。
+
+ServletContext对象的生命周期：
+
+创建：服务器启动
+
+销毁：服务器关闭
+
+
+
+**获得ServletContext对象**
+
+1. ServletContext servletContext = config.getServletContext();
+2. ServletContext servletContext = this.getServletContext(); (在doGet里面，往上找HttpServlet，再往上找GenericServlet，该类的getServletContext()，从init方法传进来的ServletConfig对象获得ServletContext)
+
+
+
+**获得初始化参数**
+
+```java
+ServletContext servletContext = this.getServletContext(); 
+String initParameter = servletContext.getInitParameter("driver");
+```
+
+**获得web应用中任何资源的绝对路径**
+
+方法：String path = servletContext.getRealPath(相对该web应用的相对地址，就是myServer这个工程的地址，不是eclipse中的地址，而是tomcat中的地址);
+
+```
+String path = servletContext.getRealPath("myServer/WEB-INF/A.txt");
+```
+
+```java
+//getResource()参数是一个相对地址，相对classes
+String path = ContextServlet.class.getClassLoader().getResource("ctxt").getPath();
+```
+
+**ServletContext是一个域对象**
+
+在整个web应用中是全局的
+
+存储数据的的区域是域对象
+
+作用范围：整个web应用都可以向ServletContext存取数据
+
+域对象的通用的方法：
+
+setAtrribute(String name,Object obj);
+
+getAttribute(String name);
+
+removeAttribute(String name);
