@@ -1,0 +1,80 @@
+某一个类是实例创建不是显式的new，而是交给一个类生产的工厂来进行。
+
+### 简单工厂方法
+
+工厂：
+
+```java
+//创建一个生产党皓天或朱熠璇的工厂
+public class Factory{
+    public static Person getPerson(String s){
+        //DangHaotian和ZhuYixuan都继承了Person类
+        if (s=="党皓天"){
+            return new DangHaotian();
+        }
+        else if (s=="朱熠璇"){
+            return new ZhuYixuan();
+        }
+    }
+}
+```
+
+调用时：
+
+```java
+public class Call{
+    public static void main(String[] args){
+        //调用工厂方法
+        Person p1 = Factory.getPerson("朱熠璇");
+        p1.doSomething();
+        Person p2 = Factory.getPerson("党皓天");
+        p2.doSomething();
+    }
+}
+```
+
+### 工厂方法
+
+简单工厂方法的不足之处在于可扩展性，如果要在工厂类中添加一个生产梅西的类，那么需要改Factory类，违反了封装原则。
+
+工厂方法的改进：
+
+定义一个Factory接口，接口定义的方法返回值为Person，让不同的类去实现这个接口，实现这个接口的类都是工厂，只不过每个工厂只会生产同一个人，扩展时，让梅西类实现Factory接口即可。
+
+```java
+//接口
+interface Factory{
+    public Person getPerson();
+}
+```
+
+```java
+//党皓天生产工厂
+class ProduceDangHaotian implements Factory{
+    public Person getPerson(){
+        return new DangHaotian();
+    }
+}
+//朱熠璇生产工厂
+class ProduceZhuYixuan implements Factory{
+    public Person getPerson(){
+        return new ZhuYixuan();
+    }
+}
+```
+
+调用时：
+
+```java
+public class Call{
+    public static void main(String[] args){
+        //调用工厂方法
+        Factory FactoryD = new ProduceDangHaotian();
+        Person D = FactoryD.getPerson();
+        D.dosomething();
+        
+    }
+}
+```
+
+这样工厂就做到了可扩展

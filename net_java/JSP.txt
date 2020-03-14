@@ -1,0 +1,40 @@
+## JSP
+
+html中嵌入Java代码，动态响应页面
+
+JSP（Java Server Pages）Java服务器页面，本质为Servlet
+
+**JSP脚本**
+
+1）<%java代码%>------内部的Java代码翻译到service方法的内部
+
+2）<%=java代码或表达式%>-------会被翻译成service方法内部out.print()
+
+3）<%!java代码%>------会翻译成servlet成员的内容
+
+**JSP运行原理-----本质就是Servlet**
+
+第一次执行的时候会被Web容器翻译成Servlet，放在work文件夹下
+
+过程：
+
+第一次访问---->helloServlet.jsp------>helloServlet_jsp.java----->编译运行
+
+
+
+JSP指令
+
+格式：<%@ page 属性名1= "属性值1" 属性名2= "属性值2" ...%>
+
+属性：
+
+language="java"
+
+contextType="text/html;charset=UTF-8"
+
+pageEncoding="UTF-8"    jsp文件本身编码
+
+session：是否jsp在翻译时自动创建session
+
+import=“java.util.List”
+
