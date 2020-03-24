@@ -1,0 +1,159 @@
+### 1. ConcurrentHashMap
+
+https://www.cnblogs.com/aspirant/p/8623864.html
+
+(1) 结构
+
+由Segment数组和HashEntry数组组成。每个Segment都是一个ReenTrantLock，对应着一组HashEntry数组，每个HashEntry元素是一个链表或红黑树。
+
+从Java1.8 版本开始 ConcurrentHashMap 不再采用 Segment 实现，而是改用 Node，Node 是一个链表的结构，每个节点可以引用到下一个节点(next)。相比1.7，颗粒度变小。
+
+**采用CAS+synchronized来解决。**
+
+**put方法：**
+
+计算key的hash值，即调用spread()方法计算hash值；
+获取hash值对应的Node节点位置，此时通过一个循环实现。有以下几种情况：
+1、如果table表为空，则首先进行初始化操作，初始化之后再次进入循环获取Node节点的位置；
+2、如果table不为空，但没有找到key对应的Node节点，则直接调用casTabAt()方法插入一个新节点，此时不用加锁；
+3、如果table不为空，且key对应的Node节点也不为空，但Node头结点的hash值为MOVED(-1)，则表示需要扩容，此时调用helpTransfer()方法进行扩容；
+4、他情况下，则直接向Node中插入一个新Node节点，此时需要对这个Node链表或红黑树通过synchronized加锁。
+插入元素后，判断对应的Node结构是否需要改变结构，如果需要则调用treeifyBin()方法将Node链表升级为红黑树结构；
+最后，调用addCount()方法记录table中元素的数量。
+
+```java
+public V put(K key, V value) {
+    return putVal(key, value, false);
+}
+/** Implementation for put and putIfAbsent */
+final V putVal(K key, V value, boolean onlyIfAbsent) {
+    if (key == null || value == null) throw new NullPointerException();
+    int hash = spread(key.hashCode()); //两次hash，减少hash冲突，可以均匀分布
+    int binCount = 0;
+    for (Node<K,V>[] tab = table;;) { //对这个table进行迭代
+        Node<K,V> f; int n, i, fh;
+        //这里就是上面构造方法没有进行初始化，在这里进行判断，为null就调用initTable进行初始化，属于懒汉模式初始化
+        if (tab == null || (n = tab.length) == 0)
+            tab = initTable();
+        else if ((f = tabAt(tab, i = (n - 1) & hash)) == null) {//如果i位置没有数据，就直接无锁插入，CAS插入，不用获取锁
+            if (casTabAt(tab, i, null,
+                         new Node<K,V>(hash, key, value, null)))
+                break;                   // no lock when adding to empty bin
+        }
+        else if ((fh = f.hash) == MOVED)//如果在进行扩容，则先进行扩容操作
+            tab = helpTransfer(tab, f);
+        else {
+            V oldVal = null;
+            //如果以上条件都不满足，那就要进行加锁操作，也就是存在hash冲突，锁住链表或者红黑树的头结点
+            synchronized (f) {
+                if (tabAt(tab, i) == f) {
+                    if (fh >= 0) { //表示该节点是链表结构
+                        binCount = 1;
+                        for (Node<K,V> e = f;; ++binCount) {
+                            K ek;
+                            //这里涉及到相同的key进行put就会覆盖原先的value
+                            if (e.hash == hash &&
+                                ((ek = e.key) == key ||
+                                 (ek != null && key.equals(ek)))) {
+                                oldVal = e.val;
+                                if (!onlyIfAbsent)
+                                    e.val = value;
+                                break;
+                            }
+                            Node<K,V> pred = e;
+                            if ((e = e.next) == null) {  //插入链表尾部
+                                pred.next = new Node<K,V>(hash, key,
+                                                          value, null);
+                                break;
+                            }
+                        }
+                    }
+                    else if (f instanceof TreeBin) {//红黑树结构
+                        Node<K,V> p;
+                        binCount = 2;
+                        //红黑树结构旋转插入
+                        if ((p = ((TreeBin<K,V>)f).putTreeVal(hash, key,
+                                                       value)) != null) {
+                            oldVal = p.val;
+                            if (!onlyIfAbsent)
+                                p.val = value;
+                        }
+                    }
+                }
+            }
+            if (binCount != 0) { //如果链表的长度大于8时就会进行红黑树的转换
+                if (binCount >= TREEIFY_THRESHOLD)
+                    treeifyBin(tab, i);
+                if (oldVal != null)
+                    return oldVal;
+                break;
+            }
+        }
+    }
+    addCount(1L, binCount);//统计size，并且检查是否需要扩容
+    return null;
+}
+```
+
+**get方法：**
+
+Node的val和next为volatile，get方法没有加锁
+
+table数组也为volatile，但引用变量的volatile只针对引用
+
+```java
+public V get(Object key) {
+    Node<K,V>[] tab; Node<K,V> e, p; int n, eh; K ek;
+    int h = spread(key.hashCode());
+    //tabAt方法为native原子方法，返回Node头
+    if ((tab = table) != null && (n = tab.length) > 0 &&
+        (e = tabAt(tab, (n - 1) & h)) != null) {
+        //如果是首节点
+        if ((eh = e.hash) == h) {
+            if ((ek = e.key) == key || (ek != null && key.equals(ek)))
+                return e.val;
+        }
+        //hash值为负值表示正在扩容，这个时候查的是ForwardingNode的find方法来定位到nextTable来
+        //查找，查找到就返回
+        else if (eh < 0)
+            return (p = e.find(h, key)) != null ? p.val : null;
+        //按链表查询
+        while ((e = e.next) != null) {
+            if (e.hash == h &&
+                ((ek = e.key) == key || (ek != null && key.equals(ek))))
+                return e.val;
+        }
+    }
+    return null;
+}
+```
+
+
+
+### 2.ConcurrentLinkedQueue
+
+使用非阻塞方式循环CAS实现
+
+内部类Node
+
+```java
+private static class Node<E> {
+        volatile E item;
+        volatile Node<E> next;
+}
+```
+
+字段
+
+```java
+private transient volatile Node<E> head;
+private transient volatile Node<E> tail;
+public ConcurrentLinkedQueue() {
+    head = tail = new Node<E>(null);
+}
+```
+
+**(1)入队列**
+
+入队操作的基本思想是，获取尾结点，利用循环CAS来入队。复杂在tail节点上。
+

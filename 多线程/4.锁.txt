@@ -70,7 +70,7 @@ static final class Node{
     volatile int waitStatus;  //包含5种状态
     volatile Node prev;       //前驱节点
     volatile Node next;       //后继节点
-    volatile Thread thread;   //当前线程
+    volatile Thread thread;   //Node对应的线程
     Node nextWaiter;          //等待队列中的后继节点
 }
 ```
