@@ -157,3 +157,105 @@ public ConcurrentLinkedQueue() {
 
 入队操作的基本思想是，获取尾结点，利用循环CAS来入队。复杂在tail节点上。
 
+tail节点不是每次都更新。
+
+```java
+public boolean offer(E e) {
+    checkNotNull(e);
+    final Node<E> newNode = new Node<E>(e);
+
+    for (Node<E> t = tail, p = t;;) {
+        Node<E> q = p.next;
+        
+        if (q == null) {
+            // p is last node
+            if (p.casNext(null, newNode)) {
+                //p和t不同，说明t是p的前一个节点，此时更新新加入的节点为尾结点
+                if (p != t) // hop two nodes at a time
+                    casTail(t, newNode);  // Failure is OK.
+                return true;
+            }
+            // Lost CAS race to another thread; re-read next
+        }
+        else if (p == q)
+            // We have fallen off list.  If tail is unchanged, it
+            // will also be off-list, in which case we need to
+            // jump to head, from which all live nodes are always
+            // reachable.  Else the new tail is a better bet.
+            p = (t != (t = tail)) ? t : head;
+        else
+            // Check for tail updates after two hops.
+            p = (p != t && t != (t = tail)) ? t : q;
+    }
+}
+```
+
+**（2）出队列**
+
+并不是每次出队时都更新head节点，当head节点里有元素时，直接弹出head节点里的元素，而不会更新head节点。只有当head节点里没有元素时，出队操作才会更新head节点。采用这种方式也是为了减少使用CAS更新head节点的消耗，从而提高出队效率。
+
+### 3. Java中的阻塞队列
+
+阻塞队列支持两个附加操作：
+
+1. 当队列为满时，阻塞插入队列的线程，直到队列不满
+2. 当队列为空时，阻塞获取元素的线程，直到队列不为空
+
+**（1）ArrayBlockingQueue**
+
+```java
+public ArrayBlockingQueue(int capacity, boolean fair) {
+    if (capacity <= 0)
+        throw new IllegalArgumentException();
+    this.items = new Object[capacity];
+    lock = new ReentrantLock(fair);
+    //两个等待队列
+    notEmpty = lock.newCondition();
+    notFull =  lock.newCondition();
+}
+```
+
+LinkedBlockingQueue类似
+
+实现原理
+
+```java
+//生产者
+public void put(E e) throws InterruptedException {
+    checkNotNull(e);
+    final ReentrantLock lock = this.lock;
+    lock.lockInterruptibly();
+    try {
+        while (count == items.length)
+            notFull.await();
+        enqueue(e);
+    } finally {
+        lock.unlock();
+    }
+}
+//消费者
+public E take() throws InterruptedException {
+    final ReentrantLock lock = this.lock;
+    lock.lockInterruptibly();
+    try {
+        while (count == 0)
+            notEmpty.await();
+        return dequeue();
+    } finally {
+        lock.unlock();
+    }
+}
+```
+
+**（2）SynchronousQueue**
+
+是一个不存储元素的阻塞队列，每一个put必然对应一个take
+
+### 4. Fork/Join框架
+
+工作窃取算法：某个线程从其他线程队列里窃取任务来执行。提高并行计算效率。
+
+框架：
+
+1. 一个Fork类把大任务分割成小任务
+2. 分割的子任务分别放在双端队列里，几个线程就有几个双端队列，启动线程从双端队列里拿线程去执行。把结果统一放在一个队列里，由另一个线程去综合计算。
