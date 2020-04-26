@@ -1,0 +1,250 @@
+## 线程池ThreadPoolExecutor
+
+https://www.cnblogs.com/fixzd/p/9253203.html
+
+**继承AbstractExecutorService类，该类实现ExecutorService接口，该接口继承Execute接口(execute方法)**
+
+使用线程池的3个好处
+
+1. 降低资源消耗。降低创建和销毁的消耗
+2. 提高响应速度。当任务到达时，任务可以不需要等线程创建就能立即执行
+3. 提高了线程可管理性。使用线程池进行统一分配、调优和监控
+
+### 1. 线程池的实现原理：
+
+1. 执行execute(Runnable task)方法后，首先判断核心线程池里的线程是不是都在执行任务，如果不是，创建一个新的工作线程来执行任务（需要获取全局锁）；
+2. 如果是，则尝试加入工作队列BlockingQueue。如果已满，进入下一步
+3. 判断线程池的线程是否都处于工作状态，如果没有，则创建工作线程来执行任务。
+4. 如果已满，交给饱和策略来处理这个任务。
+
+构造函数：
+
+```java
+public ThreadPoolExecutor(int corePoolSize,
+                          int maximumPoolSize,
+                          long keepAliveTime,
+                          TimeUnit unit,
+                          BlockingQueue<Runnable> workQueue,
+                          ThreadFactory threadFactory,
+                          RejectedExecutionHandler handler) {
+}
+```
+
+线程池状态：
+
+```java
+//运行中 111 00000000000000000000000000000
+private static final int RUNNING    = -1 << COUNT_BITS;
+//关闭 000 00000000000000000000000000000
+private static final int SHUTDOWN   =  0 << COUNT_BITS;
+//停止 001 00000000000000000000000000000
+private static final int STOP       =  1 << COUNT_BITS;
+//整理 010 00000000000000000000000000000
+private static final int TIDYING    =  2 << COUNT_BITS;
+//终止 011 00000000000000000000000000000
+private static final int TERMINATED =  3 << COUNT_BITS;
+```
+
+- RUNNING：接受新任务并且处理阻塞队列里的任务
+- SHUTDOWN：拒绝新任务但是处理阻塞队列里的任务
+- STOP：拒绝新任务并且抛弃阻塞队列里的任务同时会中断正在处理的任务
+- TIDYING：所有任务都执行完（包含阻塞队列里面任务）当前线程池活动线程为0，将要调用terminated方法
+- TERMINATED：终止状态。terminated方法调用完成以后的状态
+
+execute()方法：
+
+```java
+public void execute(Runnable command) {
+    if (command == null)
+        throw new NullPointerException();
+    //ctl的前三位代表线程池状态，后29位代表线程数量，ctl为原子AtomicInteger
+    int c = ctl.get();
+    //如果工作线程数小于核心线程数
+    if (workerCountOf(c) < corePoolSize) {
+        //addWorker分两步，第一步CAS把线程数量加1，第二步把worker加入workers中并执行
+        if (addWorker(command, true))
+            return;
+        c = ctl.get();
+    }
+    //工作线程数大于核心线程数，尝试往BlockingQueue中放入任务
+    if (isRunning(c) && workQueue.offer(command)) {
+        int recheck = ctl.get();
+        if (! isRunning(recheck) && remove(command))
+            reject(command);
+        else if (workerCountOf(recheck) == 0)
+            addWorker(null, false);
+    }
+    //以maximumPoolSize加入workers
+    else if (!addWorker(command, false))
+        reject(command);
+}
+```
+
+AddWorker方法：
+
+```java
+private boolean addWorker(Runnable firstTask, boolean core) {
+    //第一步，compareAndIncrementWorkerCount(c)设置线程数加1
+    retry:
+    for (;;) {
+        int c = ctl.get();
+        int rs = runStateOf(c);
+
+        // Check if queue empty only if necessary.
+        if (rs >= SHUTDOWN &&
+            ! (rs == SHUTDOWN &&
+               firstTask == null &&
+               ! workQueue.isEmpty()))
+            return false;
+
+        for (;;) {
+            int wc = workerCountOf(c);
+            if (wc >= CAPACITY ||
+                wc >= (core ? corePoolSize : maximumPoolSize))
+                return false;
+            if (compareAndIncrementWorkerCount(c))
+                break retry;
+            c = ctl.get();  // Re-read ctl
+            if (runStateOf(c) != rs)
+                continue retry;
+            // else CAS failed due to workerCount change; retry inner loop
+        }
+    }
+
+    //第二步，把task包装成为Worker，然后workers.add(w),
+    boolean workerStarted = false;
+    boolean workerAdded = false;
+    Worker w = null;
+    try {
+        w = new Worker(firstTask);
+        final Thread t = w.thread;
+        if (t != null) {
+            final ReentrantLock mainLock = this.mainLock;
+            mainLock.lock();
+            try {
+                // Recheck while holding lock.
+                // Back out on ThreadFactory failure or if
+                // shut down before lock acquired.
+                int rs = runStateOf(ctl.get());
+
+                if (rs < SHUTDOWN ||
+                    (rs == SHUTDOWN && firstTask == null)) {
+                    if (t.isAlive()) // precheck that t is startable
+                        throw new IllegalThreadStateException();
+                    workers.add(w);
+                    int s = workers.size();
+                    if (s > largestPoolSize)
+                        largestPoolSize = s;
+                    workerAdded = true;
+                }
+            } finally {
+                mainLock.unlock();
+            }
+            if (workerAdded) {
+                t.start();
+                workerStarted = true;
+            }
+        }
+    } finally {
+        if (! workerStarted)
+            addWorkerFailed(w);
+    }
+    return workerStarted;
+}
+```
+
+Worker内部装有Thread，构建Worker时就会由工厂产生一个Thread来执行这个Worker。
+
+```java
+this.thread = getThreadFactory().newThread(this);
+```
+
+实现了Runnable接口，所以调用Worker里面的Thread的run方法就是调用Worker的run方法
+
+```java
+public void run() {
+    runWorker(this);  //即调用线程池的runWorker方法
+}
+```
+
+
+
+runWorker方法：
+
+```java
+final void runWorker(Worker w) {
+    Thread wt = Thread.currentThread();
+    Runnable task = w.firstTask;
+    w.firstTask = null;
+    w.unlock(); // allow interrupts
+    boolean completedAbruptly = true;
+    try {
+        //Worker里面如果由任务就先执行，如果没有就循环从BlockingQueue里面取任务
+        while (task != null || (task = getTask()) != null) {
+            w.lock();
+            // If pool is stopping, ensure thread is interrupted;
+            // if not, ensure thread is not interrupted.  This
+            // requires a recheck in second case to deal with
+            // shutdownNow race while clearing interrupt
+            if ((runStateAtLeast(ctl.get(), STOP) ||
+                 (Thread.interrupted() &&
+                  runStateAtLeast(ctl.get(), STOP))) &&
+                !wt.isInterrupted())
+                wt.interrupt();
+            try {
+                beforeExecute(wt, task);
+                Throwable thrown = null;
+                try {
+                    task.run();
+                } catch (RuntimeException x) {
+                    thrown = x; throw x;
+                } catch (Error x) {
+                    thrown = x; throw x;
+                } catch (Throwable x) {
+                    thrown = x; throw new Error(x);
+                } finally {
+                    afterExecute(task, thrown);
+                }
+            } finally {
+                task = null;
+                w.completedTasks++;
+                w.unlock();
+            }
+        }
+        completedAbruptly = false;
+    } finally {
+        processWorkerExit(w, completedAbruptly);
+    }
+}
+```
+
+### 2. 关闭线程池
+
+```java
+public void shutdown() {
+    final ReentrantLock mainLock = this.mainLock;
+    mainLock.lock();
+    try {
+        checkShutdownAccess();
+        //设置线程池状态为SHUTDOWN
+        advanceRunState(SHUTDOWN);
+        //挨个中断没有正在执行任务的线程
+        interruptIdleWorkers();
+        onShutdown(); // hook for ScheduledThreadPoolExecutor
+    } finally {
+        mainLock.unlock();
+    }
+    tryTerminate();
+}
+```
+
+### 3. 线程池线程数量配置
+
+cpu密集型：尽可能小，如cpu数量加1
+
+IO密集型：可以2倍的cpu数量
+
+### 4. 线程池的监控
+
+taskCount: 线程池需要执行的任务数量
+

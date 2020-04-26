@@ -1,0 +1,64 @@
+java.util.concurrent.atomic包
+
+### 1. 原子更新基本类型
+
+- AtomicBoolean
+- AtomicInteger
+- AtomicLong
+
+方法：
+
+- int addAndGet(int delta)
+- boolean compareAndSet(int expect, int update)
+- int getAndIncrement()
+- int getAndSet(int newValue)
+
+**均采用CAS方式实现，调用Unsafe实现**
+
+### 2. 原子更新数组
+
+- AtomicIntegerArray
+- AtomicLongArray
+- AtomicReferenceArray
+
+方法：
+
+```java
+int[] value = new int[]{1,2,3};
+AtomicIntegerArray arr = new AtomicIntegerArray(value);
+
+arr.getAndSet(0,3);  //将索引0位置改为3
+arr.compareAndSet(0,2,3);  //CAS将索引0位置的值从2变为3
+```
+
+### 3. 原子更新引用类型
+
+- AtomicReference: 原子更新引用类型
+- AtomicReferenceFieldUpdater: 原子更新引用类型里的字段
+- AtomicMarkableReference: 原子更新带有标记位的引用类型
+
+```java
+AtomicReference<User> atomicUserRef = new AtomicReference<User>();
+User user = new User("Dang", 22);
+atomicUserRef.set(user);
+User updateUser = new User("Messi",34);
+atomicUserRef.compareAndSet(user, updateUser);
+```
+
+### 4. 原子更新字段类
+
+- AtomicIntegerFieldUpdater: 原子更新整型的字段的更新器
+- AtomicLongFieldUpdater: 原子更新长整型字段的更新器
+- AtomicStampedReference: 原子更新带有版本号的引用类型
+
+第一步：原子更新字段类都是抽象类，每次使用需要静态方法newUpdater()创建一个更新器，并需要设置想要更新的类和属性
+
+第二步，更新的类的字段，必须使用public volatile修饰
+
+```java
+//字段old需要public volatile int old;
+AtomicIntegerFieldUpdater<User> a = AtomicIntegerFieldUpdater.newUpdater(User.class,"old");
+User Dang = new User("danghaotian",22);
+a.getAndIncrement(Dang);
+```
+

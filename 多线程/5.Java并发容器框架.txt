@@ -259,3 +259,58 @@ public E take() throws InterruptedException {
 
 1. 一个Fork类把大任务分割成小任务
 2. 分割的子任务分别放在双端队列里，几个线程就有几个双端队列，启动线程从双端队列里拿线程去执行。把结果统一放在一个队列里，由另一个线程去综合计算。
+
+两个类：
+
+1. ForkJoinTask: 创建的ForkJoin任务，提供在任务中执行fork()和join()操作的机制。RecuisiveAction和RecursiveTask分别为没有返回和有返回值的子类。
+2. ForkJoinPool: ForkJoinTask需要ForkJoinPool来执行。
+
+应用：
+
+```Java
+public CountTask extends RecursiveTask<Integer>{
+    private static final int THRESHOLD=2;
+    private int start;
+    private int end;
+    public CountTask(int start, int end){
+        this.start = start;
+        this.end = end;
+    }
+    @override
+    protected Integer compute(){
+        int sum = 0;
+        boolean canCompute = (end-start)<=THRESHOLD;
+        if(canCompute){
+            for (int i=start;i<=end;i++)
+                sum+=i;
+        }
+        else{
+            int middle = (start+end)/2;
+            CountTask leftTask = new CountTask(start, middle);
+            CountTask rightTask = new CountTask(middle+1, end);
+            //执行fork时，又会进入compute方法
+            leftTask.fork();
+            rightTask.fork();
+            int leftResult = leftTask.join();
+            int rightResult = rightTask.join();
+            sum = leftResult+rightResult;
+        }
+        return sum;
+    }
+    public static void main(String[] args){
+        ForkJoinPool forkJoinPool = new ForkJoinPool();
+        CountTask task = new CountTask(1,4);
+        Future<Integer> result = forkJoinPool.submit(task);
+        System.out.println(result);
+    }
+}
+```
+
+实现原理：
+
+ForkJoinTask定义了fork和join方法，RecuisiveAction和RecursiveTask继承ForkJoinTask并定义compute抽象方法。自定义类实现compute方法。
+
+fork方法获取本线程，将该ForkJoinTask加入到本线程所对应的WorkQueue中（如果该线程是ForkJoinWorkerThread）。每个ForkJoinWorkerThread对应一个WorkQueue。
+
+WorkQueue是ForkJoinPool的内部类，ForkJoinPool内有WorkQueue[]字段。
+

@@ -1,0 +1,113 @@
+## Java并发工具类
+
+### 1. CountDownLatch(等待多线程完成)
+
+方法1：join()
+
+```java
+public static void main(String[] args){
+    Thread t1 = new Thread(new Runnable(){
+        public void run{
+            System.out.println("finished1");
+        }
+    });
+    Thread t2 = new Thread(new Runnable(){
+        public void run{
+            System.out.println("finished2");
+        }
+    });
+    t1.start();
+    t2.start();
+    t1.join();
+    t2.join();
+    System.out.println("All finished");
+}
+```
+
+方法2：CountDownLatch
+
+```java
+public static void main(Stringp[] args){
+    CountDownLatch c = new CountDownLatch(2);
+    new Thread(new Runnable(){
+        public void run(){
+            System.out.println(1);
+            c.countDown();
+            System.out.println(2);
+            c.countDown();
+        }
+    }).start();
+    c.await();  //阻塞当前线程，直到c中的数值减为0
+    System.out.println(3);
+}
+```
+
+源码分析：利用内部类AbstractQueuedSynchronizer实现，传入的数值设置为state字段。countDown()操作让state--
+
+### 2. CyclicBarrier(同步屏障)
+
+让一组线程到达一个屏障时被阻塞，直到最后一个线程到达屏障时，屏障才会开门。
+
+```java
+public static void main(String[] args){
+    CyclicBarrier c = new CyclicBarrier(2);
+    new Thread(new Runnable(){
+        public void run(){
+            c.await();
+            System.out.println(1);
+        }
+    }).start();
+    c.await();
+    System.out.println(2);
+}
+```
+
+源码分析：利用ReentrantLock和Condition，在CyclicBarrier类的内部有一个计数器，每个线程在到达屏障点的时候都会调用await方法将自己阻塞，此时计数器会减1，当计数器减为0的时候所有因调用await方法而被阻塞的线程将被唤醒。
+
+### 3. Semaphore(控制并发线程数)
+
+线程获取Semaphore对象（s.acquire()）才可以执行，执行完后释放Semaphore对象(s.release()).
+
+```java
+public static void main(String[] args){
+    int THREAD_COUNT = 30;
+    ExecutorService threadPool = Executors.newFixedThreadPool(THREAD_COUNT);
+    //只允许10个线程执行
+    Semaphore s = new Semaphore(10);
+    for (int i=0;i<THREAD_COUNT;i++){
+        threadPool.execute(new Runnable(){
+            public void run(){
+                try{
+                    s.acquire();
+                    System.out.println("save data");
+                    s.release();
+                }catch (InterruptedException e){
+                    
+                }
+            }
+        });
+    }
+    threadPool.shutdown();
+}
+```
+
+源码分析：内部类Sync继承AbstractQueuedSynchronizer，acquire方法调用acquireSharedInterruptibly方法，release方法调用releaseShared方法
+
+### 4. 线程间交换数据的Exchanger
+
+```java
+Exchanger<String> exgr = new Exchanger<>();
+```
+
+交换数据
+
+```java
+String A = "Thread_A";
+exgr.exchange(A);
+```
+
+```java
+String B = "Thread_B";
+String A = exgr.exchange(B);
+```
+
