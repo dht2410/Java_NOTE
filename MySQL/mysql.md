@@ -64,6 +64,7 @@ create table 表名（
 show tables;	查看表
 desc 表名；	查看表的具体结构
 drop table 表名；	删除表
+show columns from 表名;	展示所有字段信息
 
 
 
@@ -161,5 +162,76 @@ delete from 表名 where 条件；
 
 ```mysql
 delete from users where uid=1;
+```
+
+
+
+查询：
+
+查询指定列的数据
+select 列名1， 列名2 from 表名
+
+```mysql
+select uid from users;
+```
+
+查询所有列的数据
+select * from 表名
+
+查询去掉重复的记录
+select distinct 列名 from 表名
+
+查询数据中，直接进行数字计算
+select name,age+10 from users;
+
+**条件查询**
+
+**select 字段 from 表名 where 条件**
+
+```mysql
+select * from users where age>5;
+-- 区间查
+select * from users where age between 2 and 30;
+-- 展示uid和name字段
+select uid,name from users where age between 2 and 30;
+-- 或
+select * from users where age in (3,22);
+-- not
+select * from users where name is not null;
+-- like 模糊查询 通配符
+select * from users where name like 'zhu%';
+-- like 几个字符几个下划线
+select * from users where name like '_____';
+```
+
+**查询，对结果集进行排序**
+order by 列名 [desc] [asc]     默认升序
+
+```mysql
+select * from users order by age asc;  -- 升序
+select * from where age>5 order by age desc;  -- 先过滤再排序
+```
+
+**聚合函数**
+
+```MySQL
+-- count求和
+select count(*) from users;
+select count(age) from users;
+-- 求和
+select sum(age) from users;
+select sum(age) as 'sumage' from users where age>5;
+-- max min avg
+select max(age) from users where age>5;
+```
+
+**分组查询**
+
+group by 被分组的列名
+必须跟聚合函数
+
+```MySQL
+-- age一样的
+select sum(age),name from users group by age;
 ```
 
