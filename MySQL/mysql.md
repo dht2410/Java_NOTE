@@ -235,3 +235,40 @@ group by 被分组的列名
 select sum(age),name from users group by age;
 ```
 
+**视图**
+
+虚表，一个SELECT语句的返回值表。
+
+没有实际的物理存储，在用到的时候动态创建。
+
+简单、安全、数据安全
+
+**触发器**
+
+针对对某一个表做的某一操作，在此操作之前或之后，由数据库自动操作某些逻辑。
+
+解决主键和外键不匹配问题。数据完整性。
+
+```sql
+-- trigger_time可以是BEFORE或AFTER
+-- trigger_event可以是INSERT/DELETE/UPDATE
+-- trigger_stmt是对表做的操作
+CREATE TRIGGER trigger_name trigger_time trigger_event
+ON tbl_name FOR EACH ROW trigger_stmt
+```
+
+```sql
+DELIMITER |
+create trigger trig_book2 after delete 
+    on t_book for each row 
+    begin 
+          update t_bookType set bookNum = bookNum-1 where old.bookTypeId=t_booktype.id;
+ 
+          insert into t_log values(null,NOW(),'在book表里删除了一条数据');
+ 
+          delete from t_test where old.bookTypeId = t_test.id;
+    end
+|
+DELIMITER ;
+```
+
