@@ -1,0 +1,63 @@
+## 虚拟文件系统
+
+- 不同文件系统
+- 不同存储介质
+
+![image-20201110154516029](C:\Users\dht24\AppData\Roaming\Typora\typora-user-images\image-20201110154516029.png)
+
+**四个对象类型：**
+
+1. 超级块对象	super_operations保存其操作，类似于对象的方法
+2. 索引节点对象    inode_operations
+3. 目录项对象    dentry_operations
+4. 文件对象    file_operations
+
+
+
+
+
+索引节点对象：
+
+代表文件系统中的一个文件。也可以是设备或者管道这样的特殊文件。有实际物理存在对应。
+
+i_pipe项指向有名管道，i_bdev指向块设备结构体，i_cdev指向字符设备结构体
+
+![image-20201110161905914](C:\Users\dht24\AppData\Roaming\Typora\typora-user-images\image-20201110161905914.png)
+
+
+
+文件对象file：
+
+文件对象是已打开的文件在内存中的表示。没有对应的磁盘数据。
+
+因为多个进程可以同时打开和操作同一个文件，所以同一个文件也可能存在多个对应的文件对象。文件对象仅仅在进程观点上代表已打开的文件，它反过来指向目录项对象（反过来指向索引节点），其实只有目录项对象才表示已打开的实际文件。
+
+
+
+### 进程和文件系统：
+
+有三个数据结构将VFS层和系统的进程紧密联系：
+
+1. file_struct
+2. fs_struct
+3. namespace
+
+![image-20201110164409822](C:\Users\dht24\AppData\Roaming\Typora\typora-user-images\image-20201110164409822.png)
+
+fd_array指向已打开的文件对象。NR_OPEN_DEFAULT默认可以容纳64个文件对象。如果进程打开的文件对象超过64个，内核将分配一个新数组，并用fdt指向它。
+
+
+
+![image-20201110164706978](C:\Users\dht24\AppData\Roaming\Typora\typora-user-images\image-20201110164706978.png)
+
+![image-20201110164717149](C:\Users\dht24\AppData\Roaming\Typora\typora-user-images\image-20201110164717149.png)
+
+fs_struct包含了当前进程的工作目录和根目录
+
+
+
+![image-20201110165107908](C:\Users\dht24\AppData\Roaming\Typora\typora-user-images\image-20201110165107908.png)
+
+
+
+当装载其他文件系统时，不管在启动时还是在操作过程中，它们也必须在VFS中注册。当一个文件系统注册时，它做的最基本的工作就是提供一个包含VFS所需要的函数地址的列表，可以是一个长的调用矢量（表），或者是许多这样的矢量（如果VFS需要），每个VFS对象一个。因此，只要一个文件系统在VFS注册，VFS就知道如何从它那里读一个块——它从文件系统提供的矢量中直接调用第4个（或者任何一个）功能。
