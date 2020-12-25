@@ -1,3 +1,181 @@
-## Spring源码
+## AOP
 
-#### 
+![image-20201211161141364](C:\Users\dht24\AppData\Roaming\Typora\typora-user-images\image-20201211161141364.png)
+
+```java
+@Aspect
+@Component
+@Order(1)
+/**
+ * 这个类叫切面类，@Aspect告诉Spring这是切面类
+ * 里面的方法叫通知方法（Advice）
+ */
+public class LogUtils {
+    /**
+     * 在目标方法之前执行
+     * @param joinPoint
+     */
+    @Before("execution(public int calculator.MyCalculator.*(int,int))")
+    public static void logStart(JoinPoint joinPoint){
+        System.out.println("[log]"+joinPoint.getSignature().getName()+"方法开始");
+    }
+
+    /**
+     * 在目标方法正常返回之后执行
+     * @param joinPoint
+     * @param result
+     */
+    @AfterReturning(value="execution(public int calculator.MyCalculator.*(int,int))",returning = "result")
+    public static void logEnd(JoinPoint joinPoint, Object result){
+        System.out.println("[log]"+joinPoint.getSignature().getName()+"方法正常返回"+result);
+    }
+
+    @AfterThrowing(value = "execution(public int calculator.MyCalculator.div(int,int))", throwing="exception")
+    public static void logThrow(JoinPoint joinPoint, Exception exception){
+        System.out.println("方法异常:"+exception+"");
+    }
+
+//    @After("execution(public int calculator.MyCalculator.*(int,int))")
+    public static void logAfter(JoinPoint joinPoint){
+        System.out.println(""+joinPoint.getSignature().getName()+"退出");
+    }
+
+    @Around(value = "execution(public int calculator.MyCalculator.*(int,int))")
+    public static Object logAround(ProceedingJoinPoint pjp){
+        String name = pjp.getSignature().getName();
+        Object[] args = pjp.getArgs();
+        Object proceed = null;
+
+        try {
+            System.out.println("[logAround]"+name+"方法开始执行");
+            proceed = pjp.proceed(args);
+            System.out.println("[logAround]"+name+"方法执行返回"+proceed);
+        } catch (Throwable throwable) {
+            throwable.printStackTrace();
+        }
+
+        return proceed;
+    }
+}
+```
+
+```java
+//细节
+//容器中保存的对象是代理对象，有切面切，就会产生这个对象
+Calculator myCalculator = ioc.getBean(Calculator.class);
+//myCalculator是一个代理类 class com.sun.proxy.$Proxy11
+System.out.println(myCalculator.getClass());
+```
+
+
+
+#### joinpoint
+
+封装了连接点的详细信息
+
+joinPoint.getArgs()-------获取目标方法的参数
+joinPoint.getSignature()---------获取方法签名
+
+```java
+@Before("execution(public int calculator.MyCalculator.*(int,int))")
+    public static void logStart(JoinPoint joinPoint){
+        System.out.println("[log]"+joinPoint.getSignature().getName()+"方法开始");
+    }
+```
+
+
+
+#### result
+
+切入点表达式，returning=“result”    告诉Spring哪个值接收目标方法返回值
+
+Exception同理
+
+```java
+    @AfterReturning(value="execution(public int calculator.MyCalculator.*(int,int))",returning = "result")
+    public static void logEnd(JoinPoint joinPoint, Object result){
+        System.out.println("[log]"+joinPoint.getSignature().getName()+"方法正常返回"+result);
+    }
+```
+
+
+
+#### 环绕通知
+
+手写版的动态代理，四合一
+
+```java
+try{
+    //@before
+    method.invoke(obj,args);
+    //@afterreturning
+}catch{
+    //@afterthrowing
+}finally{
+    //@after
+}
+```
+
+```java
+
+@Around(value = "execution(public int calculator.MyCalculator.*(int,int))")
+    public static Object logAround(ProceedingJoinPoint pjp){
+        String name = pjp.getSignature().getName();
+        Object[] args = pjp.getArgs();
+        Object proceed = null;
+
+        try {
+            System.out.println("[logAround]"+name+"方法开始执行");
+            //利用反射调用目标方法，等同于method.invoke(obj,args);
+            //这个方法前面的方法就是前置通知，后面就是后置通知
+            //在环绕通知中需要明确调用ProceedingJoinPoint的proceed()方法来执行被代理的方法。如果忘记这样做就会导致通知被执行了，但目标方法没有被执行。
+            proceed = pjp.proceed(args);
+            System.out.println("[logAround]"+name+"方法执行返回"+proceed);
+        } catch (Throwable throwable) {
+            throwable.printStackTrace();
+        }
+
+        return proceed;
+    }
+```
+
+通知顺序：环绕通知优先于普通通知执行
+
+环绕前置---普通前置---目标方法执行---环绕正常返回/异常---环绕后置---普通后置
+
+#### 多切面
+
+> order()来确定执行优先级，优先级高的先进去后出来
+
+#### AOP使用场景
+
+- 加日志保存到数据库
+- 权限验证
+- 安全检查
+- 事务控制
+
+#### **基于注解的AOP**
+
+1. 将目标类和切面类都加入ioc容器中，@component
+2. 告诉spring切面类@Aspect
+3. 在切面类中使用五个通知来配置
+4. 开启基于注解的AOP功能
+
+#### 基于配置的AOP
+
+1. 用bean把类放进去
+
+2. ```xml
+   <aop:config>
+       
+   	<aop:aspect ref="logUtils">
+       	<aop:before method="logStart" pointcut="execution(...)"/>
+           <aop:afterreturning method="logAfter" pointcut="" returning=""/>
+       </aop:aspect>
+   </aop:config>
+   ```
+
+#### 注解和配置
+
+- 别人的类，只能用配置切
+- 重要的用配置，不重要的用注解
