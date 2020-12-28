@@ -257,7 +257,7 @@ protected void doDispatch(HttpServletRequest request, HttpServletResponse respon
                 return;
             }
 
-         //4、拿到能执行这个类的所有方法的适配器（反射工具 AnnotationMethodHandlerAdapter），细节2
+            //4、拿到能执行这个类的所有方法的适配器（反射工具 AnnotationMethodHandlerAdapter），细节2
             HandlerAdapter ha = this.getHandlerAdapter(mappedHandler.getHandler());
             String method = request.getMethod();
             boolean isGet = "GET".equals(method);
@@ -615,7 +615,13 @@ public final Object invokeHandlerMethod(Method handlerMethod, Object handler,
 
 1. 如果隐含模型中有这个key（标了ModelAttribute注解的就是注解指定的value，没标就是参数类型的首字母小写）指定的值，就把这个值赋值给bindObject；
 2. 如果是SessionAttributes标注的属性，就从session中拿；
-3. 如果都不满足就利用反射创建对象，将请求中的数据绑定到这个对象中。
+3. 如果都不满足就**利用反射**创建对象，将请求中的数据绑定到这个对象中。
+
+数据绑定问题：
+
+- 数据绑定期间的数据类型转换？原始都是String，怎么转Integer Double
+- 数据绑定期间的数据格式化问题？比如提交的日期
+- 数据校验
 
 
 
@@ -638,7 +644,11 @@ public final Object invokeHandlerMethod(Method handlerMethod, Object handler,
 
 
 1. 任何方法的返回值，最终都会被包装成mv对象
-2. 
+   mv = ha.handle(processedRequest, response, mappedHandler.getHandler());
+2. this.processDispatchResult(processedRequest, response, mappedHandler, mv, dispatchException);
+   是来到页面的方法，视图渲染，就是将域中的数据在页面展示。
+3. 调用render(mv, request, response)渲染页面
+4. View与ViewResolver：ViewResolver是根据视图名（方法返回值）得到View对象
 
 **细节4**  	this.processDispatchResult(processedRequest, response, mappedHandler, mv, dispatchException);
 
@@ -710,7 +720,7 @@ protected void render(ModelAndView mv, HttpServletRequest request, HttpServletRe
         // We need to resolve the view name.
         // 1、根据viewName得到View对象
         // 方法通过里面的九大组件之视图解析器列表找到视图解析器，配置的是InternalSourceViewResolver
-        // View可能得到RedirectView或InternaResourcelView
+        // View可能得到RedirectView或InternalResourcelView
         view = resolveViewName(mv.getViewName(), mv.getModelInternal(), locale, request);
         if (view == null) {
             throw new ServletException(
@@ -762,5 +772,475 @@ protected View resolveViewName(String viewName, Map<String, Object> model, Local
 }
 ```
 
-**视图解析器只是为了得到视图对象View，视图对象才能真正转发或重定向到页面。**
+```java
+//上面的1中resolveViewName最终调用这个方法
+protected View createView(String viewName, Locale locale) throws Exception {
+    // If this resolver is not supposed to handle the given view,
+    // return null to pass on to the next resolver in the chain.
+    if (!canHandle(viewName, locale)) {
+        return null;
+    }
+    // Check for special "redirect:" prefix.
+    //如果viewName有前缀"redirect:"
+    if (viewName.startsWith(REDIRECT_URL_PREFIX)) {
+        String redirectUrl = viewName.substring(REDIRECT_URL_PREFIX.length());
+        RedirectView view = new RedirectView(redirectUrl, isRedirectContextRelative(), isRedirectHttp10Compatible());
+        return applyLifecycleMethods(viewName, view);
+    }
+    // Check for special "forward:" prefix.
+    // 如果viewName有前缀"forward:"
+    if (viewName.startsWith(FORWARD_URL_PREFIX)) {
+        String forwardUrl = viewName.substring(FORWARD_URL_PREFIX.length());
+        return new InternalResourceView(forwardUrl);
+    }
+    // Else fall back to superclass implementation: calling loadView.
+    // 调用父类方法创建视图对象
+    return super.createView(viewName, locale);
+}
+```
 
+```java
+//上面的2中view.render()最终实现的方法（如果这个View是InternalResourceView）
+protected void renderMergedOutputModel(
+    Map<String, Object> model, HttpServletRequest request, HttpServletResponse response) throws Exception {
+
+    // Determine which request handle to expose to the RequestDispatcher.
+    HttpServletRequest requestToExpose = getRequestToExpose(request);
+
+    // Expose the model object as request attributes.
+    // 把Map里的key-value拿出来放到请求域中
+    // request.setAttribute(key,value)
+    exposeModelAsRequestAttributes(model, requestToExpose);
+
+    // Expose helpers as request attributes, if any.
+    exposeHelpers(requestToExpose);
+
+    // Determine the path for the request dispatcher.
+    String dispatcherPath = prepareForRendering(requestToExpose, response);
+
+    // Obtain a RequestDispatcher for the target resource (typically a JSP).
+    // 拿到转发器，就是servlet中的转发器
+    RequestDispatcher rd = getRequestDispatcher(requestToExpose, dispatcherPath);
+    if (rd == null) {
+        throw new ServletException("Could not get RequestDispatcher for [" + getUrl() +
+                                   "]: Check that the corresponding file exists within your web application archive!");
+    }
+
+    // If already included or response already committed, perform include, else forward.
+    if (useInclude(requestToExpose, response)) {
+        response.setContentType(getContentType());
+        if (logger.isDebugEnabled()) {
+            logger.debug("Including resource [" + getUrl() + "] in InternalResourceView '" + getBeanName() + "'");
+        }
+        rd.include(requestToExpose, response);
+    }
+
+    else {
+        // Note: The forwarded resource is supposed to determine the content type itself.
+        if (logger.isDebugEnabled()) {
+            logger.debug("Forwarding to resource [" + getUrl() + "] in InternalResourceView '" + getBeanName() + "'");
+        }
+        //转发
+        rd.forward(requestToExpose, response);
+    }
+}
+```
+
+**视图解析器只是为了得到视图对象View，视图对象才能真正转发（将模型数据全部放在请求域中）或重定向到页面。**
+
+**视图对象由视图解析器负责实例化，由于视图是无状态的，所以他们不会由线程安全的问题。**
+
+**ViewResolver和View都是接口，可以自己实现，灵活。可以通过order属性指定解析器的优先顺序，order越小优先级越高。**
+
+![image-20201226133140617](C:\Users\dht24\AppData\Roaming\Typora\typora-user-images\image-20201226133140617.png)
+
+
+
+### 数据绑定
+
+①  Spring MVC 主框架将 ServletRequest 对象及目标方法的入参实例传递给 WebDataBinderFactory 实例，以创建 **DataBinder** 实例对象
+
+②  DataBinder 调用装配在 Spring MVC 上下文中的 **ConversionService** 组件进行**数据类型转换、数据格式化**工作。将 Servlet 中的请求信息填充到入参对象中
+
+③  调用 **Validator** 组件对已经绑定了请求消息的入参对象进行数据合法性校验，并最终生成数据绑定结果 **BindingData** 对象
+
+④  Spring MVC 抽取 **BindingResult** 中的入参对象和校验错误对象，将它们赋给处理方法的响应入参
+
+### 类型转换
+
+**ConversionService**有不同的converter，每种类型都有自己的
+
+自定义类型转换器：
+
+1. 定义一个类，实现Converter<S,T>接口，override converter方法，方法参数是S，返回值为T
+2. 实现的这个Converter是ConversionService中的组件，需要放进ConversionService中
+3. 在配置文件中配置
+
+
+
+### AJAX
+
+**方法上加@ResponseBody注解，方法返回Json格式，将返回的数据放在响应体中**
+
+**@RequestBody 注解标在入参前，表示请求体，可以接收Json数据直接转成POJO对象**
+
+如果参数是HttpEntity<String> str，可以拿到所有请求头
+
+返回值为ResponseEntity<String> , 构造参数为body, headers, HttpStatus
+
+
+
+### 拦截器
+
+允许目标方法运行之前进行一些拦截工作，或者目标方法运行之后进行一些其他处理
+
+**Filter: JavaWeb**
+
+**HandlerInterceptor(一个接口): SpringMVC**
+
+![image-20201227202515580](C:\Users\dht24\AppData\Roaming\Typora\typora-user-images\image-20201227202515580.png)
+
+- preHandle: 在目标方法运行之前调用，返回boolean；true，chain.doFilter()放行；false，不放行
+- postHandle：在目标方法运行之后调用
+- afterCompletion：在请求整个完成之后，来到目标页面之后
+
+**实现拦截器：**
+
+1. 实现HandlerInterceptor接口
+2. 配置
+
+```xml
+<mvc:interceptors>
+    <mvc:><>
+</mvc:interceptors>
+```
+
+**运行次序：**
+
+​	拦截器的preHandle------目标方法----------拦截器的postHandle---------页面-----------拦截器的afterCompletion
+
+**其他流程：**
+
+​	只要preHandle不放行后面就不会执行
+​	放行后afterCompletion都会执行
+
+
+
+#### 多个拦截器
+
+**运行次序：**
+
+​	先进入的后退出，preHandle按顺序执行，postHandle和afterCompletion逆序执行
+
+
+
+#### 源码
+
+> ```java
+> //doDispatch
+> protected void doDispatch(HttpServletRequest request, HttpServletResponse response) throws Exception {
+>     HttpServletRequest processedRequest = request;
+>     HandlerExecutionChain mappedHandler = null;
+>     boolean multipartRequestParsed = false;
+> 
+>     WebAsyncManager asyncManager = WebAsyncUtils.getAsyncManager(request);
+> 
+>     try {
+>         ModelAndView mv = null;
+>         Exception dispatchException = null;
+> 
+>         try {
+>             processedRequest = checkMultipart(request);
+>             multipartRequestParsed = processedRequest != request;
+> 
+>             // Determine handler for the current request.
+>             mappedHandler = getHandler(processedRequest);
+>             if (mappedHandler == null || mappedHandler.getHandler() == null) {
+>                 noHandlerFound(processedRequest, response);
+>                 return;
+>             }
+> 
+>             // Determine handler adapter for the current request.
+>             HandlerAdapter ha = getHandlerAdapter(mappedHandler.getHandler());
+> 
+>             // Process last-modified header, if supported by the handler.
+>             String method = request.getMethod();
+>             boolean isGet = "GET".equals(method);
+>             if (isGet || "HEAD".equals(method)) {
+>                 long lastModified = ha.getLastModified(request, mappedHandler.getHandler());
+>                 if (logger.isDebugEnabled()) {
+>                     String requestUri = urlPathHelper.getRequestUri(request);
+>                     logger.debug("Last-Modified value for [" + requestUri + "] is: " + lastModified);
+>                 }
+>                 if (new ServletWebRequest(request, response).checkNotModified(lastModified) && isGet) {
+>                     return;
+>                 }
+>             }
+> 
+>             //执行所有拦截器的preHandle，拦截器、目标方法的所有的执行链都保存在mappedHandler中
+>             //如果有不放行的，即方法返回false，则直接返回
+>             //细节1
+>             if (!mappedHandler.applyPreHandle(processedRequest, response)) {
+>                 return;
+>             }
+> 
+>             try {
+>                 // Actually invoke the handler.
+>                 mv = ha.handle(processedRequest, response, mappedHandler.getHandler());
+>             }
+>             finally {
+>                 if (asyncManager.isConcurrentHandlingStarted()) {
+>                     return;
+>                 }
+>             }
+> 
+>             applyDefaultViewName(request, mv);
+>             //目标方法只要正常，就会走到postHandle
+>             //细节2
+>             mappedHandler.applyPostHandle(processedRequest, response, mv);
+>         }
+>         catch (Exception ex) {
+>             dispatchException = ex;
+>         }
+>         //页面渲染如果完蛋，则直接跳到afterCompletion
+>         //页面正常时，在render后会执行afterCompletion
+>         //afterCompletion总会执行
+>         processDispatchResult(processedRequest, response, mappedHandler, mv, dispatchException);
+>     }
+>     catch (Exception ex) {
+>         triggerAfterCompletion(processedRequest, response, mappedHandler, ex);
+>     }
+>     catch (Error err) {
+>         triggerAfterCompletionWithError(processedRequest, response, mappedHandler, err);
+>     }
+>     finally {
+>         if (asyncManager.isConcurrentHandlingStarted()) {
+>             // Instead of postHandle and afterCompletion
+>             mappedHandler.applyAfterConcurrentHandlingStarted(processedRequest, response);
+>             return;
+>         }
+>         // Clean up any resources used by a multipart request.
+>         if (multipartRequestParsed) {
+>             cleanupMultipart(processedRequest);
+>         }
+>     }
+> }
+> ```
+
+
+
+细节1：mappedHandler.applyPreHandle(processedRequest, response)
+
+```java
+
+boolean applyPreHandle(HttpServletRequest request, HttpServletResponse response) throws Exception {
+    if (getInterceptors() != null) {
+        for (int i = 0; i < getInterceptors().length; i++) {
+            HandlerInterceptor interceptor = getInterceptors()[i];
+            //如果返回false,说明没有放行，则进入
+            if (!interceptor.preHandle(request, response, this.handler)) {
+                //执行afterCompletion
+                triggerAfterCompletion(request, response, null);
+                //返回一个false
+                return false;
+            }
+            //记录一个索引，确定哪个return的false
+            this.interceptorIndex = i;
+        }
+    }
+    return true;
+}
+```
+
+细节2：mappedHandler.applyPostHandle(processedRequest, response, mv);
+
+```java
+void applyPostHandle(HttpServletRequest request, HttpServletResponse response, ModelAndView mv) throws Exception {
+   if (getInterceptors() == null) {
+      return;
+   }
+   //逆序执行每个拦截器的postHandle
+   for (int i = getInterceptors().length - 1; i >= 0; i--) {
+      HandlerInterceptor interceptor = getInterceptors()[i];
+      interceptor.postHandle(request, response, this.handler, mv);
+   }
+}
+```
+
+细节3：mappedHandler.triggerAfterCompletion(request, response, ex);
+
+```java
+private void triggerAfterCompletion(HttpServletRequest request, HttpServletResponse response,
+      HandlerExecutionChain mappedHandler, Exception ex) throws Exception {
+
+   if (mappedHandler != null) {
+      mappedHandler.triggerAfterCompletion(request, response, ex);
+   }
+   throw ex;
+}
+void triggerAfterCompletion(HttpServletRequest request, HttpServletResponse response, Exception ex)
+    throws Exception {
+
+    if (getInterceptors() == null) {
+        return;
+    }
+    //有记录最后一个放行的preHandle的索引，从这个索引开始逆序执行
+    for (int i = this.interceptorIndex; i >= 0; i--) {
+        HandlerInterceptor interceptor = getInterceptors()[i];
+        try {
+            interceptor.afterCompletion(request, response, this.handler, ex);
+        }
+        catch (Throwable ex2) {
+            logger.error("HandlerInterceptor.afterCompletion threw exception", ex2);
+        }
+    }
+}
+```
+
+
+
+### Filter和拦截器
+
+如果某些功能需要其他组件配合完成，用拦截器
+
+Filter属于Tomcat，不能加到IOC容器
+
+
+
+### 异常处理
+
+- ExceptionHandlerExceptionResolver：@ExcepionHandler
+- ResponseStatusExceptionResolver：@ResponseStatus
+- DefaultHandlerExceptionResolver：判断是否SpringMVC自带的异常
+
+```java
+//exception不为空
+private void processDispatchResult(HttpServletRequest request, HttpServletResponse response,
+                                   HandlerExecutionChain mappedHandler, ModelAndView mv, Exception exception) throws Exception {
+
+    boolean errorView = false;
+
+    if (exception != null) {
+        if (exception instanceof ModelAndViewDefiningException) {
+            logger.debug("ModelAndViewDefiningException encountered", exception);
+            mv = ((ModelAndViewDefiningException) exception).getModelAndView();
+        }
+        else {
+            //处理异常
+            Object handler = (mappedHandler != null ? mappedHandler.getHandler() : null);
+            //下面源码
+            mv = processHandlerException(request, response, handler, exception);
+            errorView = (mv != null);
+        }
+    }
+
+    // Did the handler return a view to render?
+    if (mv != null && !mv.wasCleared()) {
+        //来到页面
+        render(mv, request, response);
+        if (errorView) {
+            WebUtils.clearErrorRequestAttributes(request);
+        }
+    }
+    else {
+        if (logger.isDebugEnabled()) {
+            logger.debug("Null ModelAndView returned to DispatcherServlet with name '" + getServletName() +
+                         "': assuming HandlerAdapter completed request handling");
+        }
+    }
+
+    if (WebAsyncUtils.getAsyncManager(request).isConcurrentHandlingStarted()) {
+        // Concurrent handling started during a forward
+        return;
+    }
+
+    if (mappedHandler != null) {
+        mappedHandler.triggerAfterCompletion(request, response, null);
+    }
+}
+```
+
+```java
+protected ModelAndView processHandlerException(HttpServletRequest request, HttpServletResponse response,
+      Object handler, Exception ex) throws Exception {
+
+   // Check registered HandlerExceptionResolvers...
+   ModelAndView exMv = null;
+    //如果默认三个异常解析器不能处理，则抛出去
+   for (HandlerExceptionResolver handlerExceptionResolver : this.handlerExceptionResolvers) {
+      exMv = handlerExceptionResolver.resolveException(request, response, handler, ex);
+      if (exMv != null) {
+         break;
+      }
+   }
+   if (exMv != null) {
+      if (exMv.isEmpty()) {
+         return null;
+      }
+      // We might still need view name translation for a plain error model...
+      if (!exMv.hasView()) {
+         exMv.setViewName(getDefaultViewName(request));
+      }
+      if (logger.isDebugEnabled()) {
+         logger.debug("Handler execution resulted in exception - forwarding to resolved error view: " + exMv, ex);
+      }
+      WebUtils.exposeErrorRequestAttributes(request, ex, getServletName());
+      return exMv;
+   }
+
+   //解析不了，抛出
+   throw ex;
+}
+```
+
+
+
+编写处理异常的方法：
+
+```java
+@ExceptionHandler(value={ArithmeticException.class})
+public String handleException(Exception exception){
+    return "myerror"; //进入myerror页面
+}
+
+@ExceptionHandler(value={ArithmeticException.class})
+public ModelAndView handleException(Exception exception){
+    ModelAndView mv = new ModelAndView("myerror");
+    mv.addObject("ex",exception);
+    return mv;
+}
+```
+
+
+
+集中处理异常的类加入ioc容器中，@ControllerAdvice注解
+
+全局异常处理与本类同时存在，用本类的
+
+
+
+### 运行流程
+
+![image-20201228151538377](C:\Users\dht24\AppData\Roaming\Typora\typora-user-images\image-20201228151538377.png)
+
+
+
+### SpringMVC和Spring整合
+
+目的：分工明确
+
+SpringMVC的配置文件就来配置和网站转发逻辑以及和网站功能有关的（视图解析器、文件上传解析器、支持ajax）
+
+Spring的配置文件来配置和业务有关的（事务控制、数据源、xxx）
+
+**方法1：**
+
+```xml
+<import resource="spring.xml"/>
+```
+
+**方法2：**
+
+SpringMVC和Spring分容器，父子容器
+
+![image-20201228155720708](C:\Users\dht24\AppData\Roaming\Typora\typora-user-images\image-20201228155720708.png)
